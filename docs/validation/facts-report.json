@@ -1,0 +1,92 @@
+{
+  "browser": {
+    "protocolVersion": "1.3",
+    "product": "Chrome/156.0.8078.74",
+    "revision": "@d331de35ca8ab1358c7a17e4bd41627d55eaef51",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+    "jsVersion": "15.6.75.25"
+  },
+  "note": "CSS shell and pure simulation verified. CDN blocked here; no successful Three.js runtime or physical device performance measurement.",
+  "syntax": {
+    "bodies.js": true,
+    "bootstrap.js": true,
+    "facts-card.js": true,
+    "main.js": true,
+    "planet-facts.js": true,
+    "state.js": true,
+    "ui.js": true
+  },
+  "simulation": {
+    "normal": true,
+    "paused": true,
+    "speed": true,
+    "clamped": true,
+    "reducedMotion": true
+  },
+  "startup": {
+    "message": "3D scénu se nepodařilo spustit. Zkontrolujte připojení a podporu WebGL v prohlížeči.",
+    "retryVisible": true,
+    "canvas": false
+  },
+  "facts": {
+    "mercury": true,
+    "venus": true,
+    "earth": true,
+    "mars": true,
+    "jupiter": true,
+    "saturn": true,
+    "uranus": true,
+    "neptune": true,
+    "sun": true,
+    "retrograde": true,
+    "atmosphericTemperature": true,
+    "meanDiameter": true,
+    "sunDistinct": true,
+    "noStalePlanet": true,
+    "homeCleared": true
+  },
+  "layouts": [
+    {
+      "within": true,
+      "overlap": false,
+      "overflow": false,
+      "name": "mobile"
+    },
+    {
+      "within": true,
+      "overlap": false,
+      "overflow": false,
+      "name": "mobile-small"
+    },
+    {
+      "within": true,
+      "overlap": false,
+      "overflow": false,
+      "name": "mobile-landscape"
+    },
+    {
+      "within": true,
+      "overlap": false,
+      "overflow": false,
+      "name": "tablet"
+    },
+    {
+      "within": true,
+      "overlap": false,
+      "overflow": false,
+      "name": "tablet-landscape"
+    },
+    {
+      "within": true,
+      "overlap": false,
+      "overflow": false,
+      "name": "notebook"
+    },
+    {
+      "within": true,
+      "overlap": false,
+      "overflow": false,
+      "name": "notebook-small"
+    }
+  ]
+}

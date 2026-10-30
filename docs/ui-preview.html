@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Vesmírná cesta — návrh rozhraní pro všechna zařízení</title>
+  <script>if (new URLSearchParams(location.search).has('screen')) document.documentElement.classList.add('screen-mode');</script>
+  <style>
+    :root { color-scheme: dark; --bg: #080e17; --panel: #111c2b; --line: #293a50; --muted: #a4b5ca; --text: #f1f6ff; --accent: #b7f6d2; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; }
+    button, select { font: inherit; color: inherit; }
+    button, select, a { -webkit-tap-highlight-color: transparent; }
+    button, select { cursor: pointer; }
+    button { border: 1px solid var(--line); background: #142134; border-radius: 12px; min-height: 44px; padding: 10px 15px; }
+    button:hover { background: #23354c; }
+    button:focus-visible, a:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+    button[aria-pressed="true"] { background: #25473f; border-color: #8adab3; color: #d0ffe3; }
+    a { color: #b7f6d2; text-underline-offset: 4px; }
+    .eyebrow { color: var(--accent); text-transform: uppercase; font-size: 11px; letter-spacing: 2px; font-weight: 650; }
+    .review { max-width: 1480px; padding: 52px 40px 80px; margin: auto; }
+    .review-head { display: flex; justify-content: space-between; align-items: start; gap: 32px; }
+    .review h1 { font-size: clamp(32px, 5vw, 64px); line-height: 1.08; font-weight: 550; letter-spacing: -2px; margin: 18px 0; }
+    .review p { color: var(--muted); line-height: 1.7; max-width: 760px; }
+    .verdict { flex: 0 0 280px; border: 1px solid #52604b; background: #1b251e; padding: 22px; border-radius: 18px; margin-top: 12px; }
+    .verdict strong { color: #def1b8; }
+    .verdict p { font-size: 14px; margin-bottom: 0; }
+    .review-controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 26px 0; }
+    .review-controls label { display: flex; align-items: center; gap: 10px; margin-left: auto; color: var(--muted); }
+    .review-controls select { background: #142134; border: 1px solid var(--line); padding: 10px; border-radius: 10px; min-height: 44px; }
+    .device-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+    .device { min-width: 0; margin: 0; padding: 18px; border: 1px solid var(--line); border-radius: 20px; background: #0e1724; }
+    .device[data-device="notebook"] { grid-column: 1 / -1; }
+    .device figcaption { display: flex; justify-content: space-between; align-items: center; margin: 0 0 16px; gap: 12px; }
+    .device figcaption strong { font-size: 18px; }
+    .device figcaption span { color: var(--muted); font-size: 13px; }
+    .device-stage { overflow: hidden; border: 1px solid #34475f; border-radius: 12px; position: relative; margin: auto; background: #040912; }
+    .device-stage iframe { border: 0; display: block; transform-origin: top left; }
+    .device p { font-size: 14px; margin-bottom: 0; }
+    .device-grid[data-filter]:not([data-filter="all"]) { display: block; }
+    .device-grid[data-filter="mobile"] .device:not([data-device="mobile"]),
+    .device-grid[data-filter="tablet"] .device:not([data-device="tablet"]),
+    .device-grid[data-filter="notebook"] .device:not([data-device="notebook"]) { display: none; }
+    .review-notes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 36px; }
+    .review-notes h2 { font-size: 17px; font-weight: 600; }
+    .review-notes p { font-size: 14px; }
+    .footnote { border-top: 1px solid var(--line); padding-top: 24px; margin-top: 30px; font-size: 13px; }
+    .app-screen { display: none; }
+    .screen-mode body { overflow: hidden; }
+    .screen-mode .review { display: none; }
+    .screen-mode .app-screen { display: grid; }
+    /* Rozhraní aplikace: skutečné breakpointy uvnitř jednotlivých viewportů. */
+    .app-screen {
+      width: 100%; height: 100vh; height: 100dvh; min-height: 0;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      grid-template-columns: 232px minmax(0, 1fr) 288px;
+      grid-template-rows: 80px minmax(0, 1fr) 80px;
+      background: radial-gradient(ellipse at 58% 40%, #10294355, transparent 55%), #060c16;
+      position: relative; isolation: isolate;
+    }
+    .starfield { position: absolute; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+    .star { position: absolute; border-radius: 50%; background: #d3e8ff; }
+    .topbar { grid-area: 1 / 1 / 2 / -1; display: flex; align-items: center; justify-content: space-between; padding: 0 28px; border-bottom: 1px solid #20314880; gap: 16px; background: #080f1bcc; }
+    .brand { display: flex; gap: 12px; align-items: center; font-weight: 600; letter-spacing: -.3px; font-size: 18px; white-space: nowrap; }
+    .brand-mark { width: 32px; height: 32px; border: 1px solid #9ae8c4; border-radius: 50%; position: relative; transform: rotate(-25deg); }
+    .brand-mark::after { content: ''; position: absolute; inset: 8px -8px; border: 1px solid #9ae8c4; border-radius: 50%; }
+    .top-actions { display: flex; align-items: center; gap: 10px; }
+    .prototype-tag { color: #c7d7ec; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin-right: 8px; }
+    .home { background: transparent; }
+    .catalog { grid-area: 2 / 1 / 3 / 2; margin: 24px 0 24px 20px; min-height: 0; display: flex; flex-direction: column; padding: 18px 12px; border-radius: 18px; border: 1px solid #27374c; background: #0d1725ee; }
+    .catalog-heading { margin: 0 8px 16px; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: var(--muted); }
+    .categories { display: grid; gap: 4px; border-bottom: 1px solid var(--line); padding-bottom: 12px; margin-bottom: 12px; }
+    .category { text-align: left; font-size: 13px; border-color: transparent; background: transparent; padding: 10px; }
+    .object-list { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 4px; scrollbar-width: thin; }
+    .object-button { display: flex; align-items: center; gap: 12px; background: transparent; border-color: transparent; text-align: left; font-size: 14px; flex-shrink: 0; padding: 8px 10px; min-height: 48px; }
+    .orb { width: 25px; height: 25px; border-radius: 50%; display: inline-block; flex-shrink: 0; background: radial-gradient(circle at 32% 25%, #ffffff99, transparent 45%), var(--orb, #588eae); box-shadow: inset -8px -4px 10px #0009; }
+    .scene-window { grid-area: 2 / 2 / 3 / 3; min-width: 0; min-height: 0; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 38px 12px 55px; overflow: hidden; }
+    .scene-caption { position: absolute; top: 30px; left: 32px; font-size: 12px; color: var(--muted); letter-spacing: 1px; }
+    .planet-art { width: min(92%, 540px); height: min(82%, 540px); overflow: visible; filter: drop-shadow(0 0 26px #3996e42b); }
+    .generic-art { display: none; width: min(65%, 340px); max-height: 75%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 30% 25%, #ffffff88, transparent 42%), radial-gradient(circle at 25% 35%, var(--planet-color), #050a12 80%); box-shadow: 0 0 45px #559ad32b; }
+    .scene-window.other .planet-art { display: none; }
+    .scene-window.other .generic-art { display: block; }
+    .system-art { display: none; width: 100%; height: 100%; max-height: 680px; overflow: visible; }
+    .scene-window.overview .system-art { display: block; }
+    .scene-window.overview .planet-art, .scene-window.overview .generic-art { display: none; }
+    .system-orbit { fill: none; stroke: #56718c; stroke-opacity: .52; stroke-width: 1; vector-effect: non-scaling-stroke; }
+    .system-orbit.earth-orbit { stroke: #a3e6c5; stroke-opacity: .7; }
+    .system-node { cursor: pointer; outline: none; }
+    .system-node .hit-area { fill: transparent; stroke: transparent; stroke-width: 2; vector-effect: non-scaling-stroke; }
+    .system-node:hover .hit-area, .system-node:focus-visible .hit-area { stroke: var(--accent); }
+    .system-label { fill: #d0dff0; font-size: 19px; text-anchor: middle; paint-order: stroke; stroke: #060c16; stroke-width: 5px; stroke-linejoin: round; pointer-events: none; }
+    .object-card.system-card h1 { font-size: 33px; line-height: 1.15; }
+    .view-picker { display: flex; align-items: center; gap: 8px; margin: -10px 0 24px; }
+    .view-picker span { font-size: 13px; color: var(--muted); margin-right: 8px; }
+    .scene-label { position: absolute; bottom: 56px; text-align: center; font-size: 11px; letter-spacing: 2px; color: #bfd2e9; text-transform: uppercase; }
+    .scene-help { position: absolute; bottom: 20px; color: var(--muted); font-size: 12px; text-align: center; padding: 0 12px; }
+    .touch-help { display: none; }
+    .object-card { grid-area: 2 / 3 / 3 / 4; align-self: center; margin: 20px 24px 20px 0; padding: 24px; background: #101c2ae8; border: 1px solid #2b3e53; border-radius: 20px; min-width: 0; max-height: calc(100% - 40px); overflow: auto; }
+    .object-card h1 { margin: 10px 0 6px; font-size: 42px; font-weight: 500; letter-spacing: -1px; }
+    .object-card .tagline { color: #c3d2e4; margin: 0 0 20px; font-size: 14px; }
+    .card-copy { color: #b3c3d7; font-size: 14px; line-height: 1.65; }
+    .facts { border-top: 1px solid #2b3e53; margin-top: 22px; padding-top: 6px; }
+    .facts div { display: flex; justify-content: space-between; gap: 8px; padding: 12px 0; font-size: 12px; }
+    .facts dt { color: var(--muted); }
+    .facts dd { margin: 0; }
+    .narrate { display: block; width: 100%; background: #b7f6d2; color: #102a22; border: 0; margin-top: 22px; font-size: 13px; font-weight: 600; }
+    .narrate:hover { background: #d1ffe4; }
+    .details-toggle { display: none; }
+    .scale-note { font-size: 11px; color: var(--muted); line-height: 1.5; margin: 18px 0 0; }
+    .toolbar { grid-area: 3 / 1 / 4 / -1; display: flex; align-items: center; justify-content: center; gap: 12px; border-top: 1px solid #203148; padding: 10px 24px; background: #0a1321; }
+    .toolbar button, .toolbar select { min-height: 44px; }
+    .toolbar select { background: #142134; border: 1px solid var(--line); padding: 10px 12px; border-radius: 12px; font-size: 13px; }
+    .toolbar label { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 10px; }
+    .toolbar .divider { width: 1px; height: 26px; background: var(--line); margin: 0 6px; }
+    .sim-state { font-size: 12px; color: #b7f6d2; margin-right: auto; }
+    .sim-state::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #b7f6d2; display: inline-block; margin-right: 8px; }
+    .design-note { color: var(--muted); margin-left: auto; font-size: 11px; }
+    .toast { position: absolute; z-index: 10; left: 50%; top: 90px; transform: translateX(-50%); background: #253b4f; border: 1px solid #7fa8cb; padding: 12px 18px; border-radius: 12px; max-width: calc(100% - 24px); width: max-content; font-size: 13px; box-shadow: 0 8px 32px #0008; }
+    .toast:empty { display: none; }
+    @media (min-width: 700px) and (max-width: 1099px) {
+      .app-screen { grid-template-columns: 198px minmax(0, 1fr); grid-template-rows: 76px minmax(0, 1fr) 250px 76px; }
+      .catalog { grid-area: 2 / 1 / 4 / 2; margin: 18px 0 18px 16px; }
+      .scene-window { grid-area: 2 / 2 / 3 / 3; }
+      .object-card { grid-area: 3 / 2 / 4 / 3; margin: 0 18px 18px; padding: 18px 20px; max-height: 100%; align-self: stretch; }
+      .object-card h1 { font-size: 30px; margin: 4px 0; }
+      .object-card.system-card h1 { font-size: 30px; }
+      .object-card .tagline { margin-bottom: 6px; }
+      .card-copy { margin: 8px 0; font-size: 13px; }
+      .facts, .scale-note { display: none; }
+      .narrate { width: auto; margin-top: 10px; }
+      .toolbar { grid-area: 4 / 1 / 5 / -1; padding: 10px 18px; gap: 8px; }
+      .sim-state, .design-note, .prototype-tag { display: none; }
+      .planet-art { width: 95%; height: 90%; }
+      .scene-caption { top: 22px; left: 24px; }
+      .mouse-help { display: none; }
+      .touch-help { display: inline; }
+    }
+    @media (max-width: 699px) {
+      .app-screen { grid-template-columns: minmax(0, 1fr); grid-template-rows: 64px minmax(100px, 1fr) auto 126px 64px; }
+      .topbar { padding: 0 16px; gap: 8px; }
+      .brand { font-size: 15px; gap: 10px; }
+      .brand-mark { width: 24px; height: 24px; }
+      .top-actions { gap: 6px; }
+      .home { font-size: 12px; padding: 8px 12px; }
+      .prototype-tag { display: none; }
+      .scene-window { grid-area: 2 / 1 / 3 / 2; padding: 20px 18px 32px; }
+      .scene-caption { top: 12px; left: 20px; font-size: 10px; }
+      .planet-art { width: 94%; height: 94%; }
+      .scene-label { bottom: 30px; font-size: 9px; }
+      .scene-help { bottom: 10px; font-size: 10px; }
+      .mouse-help { display: none; }
+      .touch-help { display: inline; }
+      .object-card { grid-area: 3 / 1 / 4 / 2; border-radius: 18px; margin: 0 12px 10px; padding: 12px 16px; max-height: 34dvh; display: grid; grid-template-columns: 1fr auto; gap: 0 8px; align-self: stretch; }
+      .object-card .eyebrow { font-size: 9px; }
+      .object-card h1 { font-size: 27px; margin: 2px 0; }
+      .object-card.system-card h1 { font-size: 25px; }
+      .system-label { font-size: 28px; }
+      .system-node.inner-planet .system-label { display: none; }
+      .system-node.inner-planet:hover .system-label, .system-node.inner-planet:focus-visible .system-label { display: block; }
+      .object-card .tagline { font-size: 12px; margin: 0; }
+      .card-heading { min-width: 0; }
+      .details-toggle { display: block; align-self: center; font-size: 12px; min-width: 72px; padding: 8px 10px; }
+      .card-more { display: none; grid-column: 1 / -1; }
+      .object-card.expanded .card-more { display: block; }
+      .facts, .scale-note { display: none; }
+      .card-copy { font-size: 13px; margin: 10px 0; }
+      .narrate { margin: 10px 0 0; }
+      .catalog { grid-area: 4 / 1 / 5 / 2; margin: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: 4px 12px 0; background: #0d1725; }
+      .catalog-heading { display: none; }
+      .categories { display: flex; gap: 4px; margin: 0 0 4px; padding: 0; border: 0; }
+      .category { flex: 1; font-size: 11px; white-space: nowrap; padding: 6px; text-align: center; }
+      .object-list { flex-direction: row; gap: 4px; overflow-x: auto; overflow-y: hidden; }
+      .object-button { flex-direction: column; gap: 4px; min-width: 62px; padding: 7px; font-size: 11px; min-height: 66px; text-align: center; }
+      .orb { width: 26px; height: 26px; }
+      .toolbar { grid-area: 5 / 1 / 6 / 2; gap: 6px; padding: 8px 12px; justify-content: space-between; }
+      .toolbar button { font-size: 12px; padding: 8px 10px; }
+      .toolbar select { font-size: 12px; padding: 8px 4px; max-width: 108px; }
+      .toolbar label { gap: 0; }
+      .toolbar .label-text, .sim-state, .design-note, .divider { display: none; }
+      .toast { top: 72px; }
+    }
+    /* Telefon na šířku: místo spodních panelů tři úzké sloupce. */
+    @media (min-width: 700px) and (max-height: 500px) {
+      .app-screen { grid-template-columns: 176px minmax(0, 1fr) 218px; grid-template-rows: 54px minmax(0, 1fr) 58px; }
+      .topbar { padding: 0 16px; }
+      .brand { font-size: 15px; }
+      .catalog { grid-area: 2 / 1 / 3 / 2; margin: 8px 0 8px 10px; padding: 8px; }
+      .catalog-heading { display: none; }
+      .categories { gap: 0; padding-bottom: 4px; margin-bottom: 4px; }
+      .category { padding: 6px; font-size: 12px; }
+      .object-button { min-height: 44px; padding: 6px; font-size: 12px; }
+      .scene-window { grid-area: 2 / 2 / 3 / 3; padding: 15px 0 25px; }
+      .scene-caption, .scene-label { display: none; }
+      .scene-help { bottom: 6px; font-size: 10px; }
+      .object-card { grid-area: 2 / 3 / 3 / 4; margin: 8px 10px 8px 0; padding: 14px; max-height: calc(100% - 16px); align-self: center; }
+      .object-card h1 { font-size: 28px; }
+      .object-card.system-card h1 { font-size: 26px; }
+      .object-card .tagline { font-size: 12px; margin-bottom: 4px; }
+      .card-copy { font-size: 12px; line-height: 1.5; }
+      .narrate { font-size: 11px; padding: 8px; }
+      .toolbar { grid-area: 3 / 1 / 4 / -1; padding: 6px 16px; }
+      .toolbar .label-text { display: none; }
+      .mouse-help { display: none; }
+      .touch-help { display: inline; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
+    @media (max-width: 800px) {
+      .review { padding: 28px 16px; }
+      .review-head { flex-direction: column; gap: 12px; }
+      .verdict { flex-basis: auto; width: 100%; }
+      .device-grid, .review-notes { grid-template-columns: 1fr; }
+      .review-controls label { margin-left: 0; }
+      .device { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="review">
+    <header class="review-head">
+      <div>
+        <div class="eyebrow">Vesmírná cesta / návrh 02 / 30. 10. 2026</div>
+        <h1>Vesmír, na dosah.<br>Na každé obrazovce.</h1>
+        <p>Začněte pohledem na celou Sluneční soustavu. Sledujte oběhy osmi planet, pozastavte čas nebo vyberte planetu a otevřete její detail. Tlačítko Přehled vás vrátí zpět.</p>
+      </div>
+      <aside class="verdict"><strong>Plán potřebuje doplnit.</strong><p>Základ je připravený. Před rozšířením grafiky upřesnit responzivitu, gesta, chybové stavy a výkonové rozpočty.</p></aside>
+    </header>
+    <nav class="review-controls" aria-label="Náhled zařízení">
+      <button data-filter="all" aria-pressed="true">Všechna zařízení</button>
+      <button data-filter="mobile" aria-pressed="false">Mobil</button>
+      <button data-filter="tablet" aria-pressed="false">Tablet</button>
+      <button data-filter="notebook" aria-pressed="false">Notebook</button>
+      <label>Varianta <select id="orientation"><option value="portrait">Výchozí</option><option value="landscape">Na šířku</option><option value="compact">Malá obrazovka</option></select></label>
+    </nav>
+    <nav class="view-picker" aria-label="Výchozí pohled v náhledech">
+      <span>Pohled</span><button data-view="overview" aria-pressed="true">Celá soustava</button><button data-view="earth" aria-pressed="false">Detail Země</button>
+    </nav>
+    <div class="device-grid" data-filter="all">
+      <figure class="device" data-device="notebook">
+        <figcaption><strong>01 / Notebook</strong><span class="dimensions">1440 × 900</span></figcaption>
+        <div class="device-stage"><iframe title="Návrh pro notebook" data-width="1440" data-height="900"></iframe></div>
+        <p>Celá soustava s oběžnými drahami uprostřed, katalog vlevo a informace vpravo. Kliknutí na planetu otevře detail.</p>
+      </figure>
+      <figure class="device" data-device="tablet">
+        <figcaption><strong>02 / Tablet</strong><span class="dimensions">768 × 1024</span></figcaption>
+        <div class="device-stage"><iframe title="Návrh pro tablet" data-width="768" data-height="1024"></iframe></div>
+        <p>Postranní katalog a karta pod scénou. Žádné funkce závislé na najetí myší; tlačítka mají alespoň 44 px.</p>
+      </figure>
+      <figure class="device" data-device="mobile">
+        <figcaption><strong>03 / Mobil</strong><span class="dimensions">390 × 844</span></figcaption>
+        <div class="device-stage"><iframe title="Návrh pro mobil" data-width="390" data-height="844"></iframe></div>
+        <p>Posuvný katalog a skládací karta pod scénou. Na šířku se panely přesunou k okrajům.</p>
+      </figure>
+    </div>
+    <div class="review-notes">
+      <section><h2>Scéna má vlastní prostor</h2><p>Panely neleží přes planetu. Při implementaci se kamera přizpůsobí skutečné ploše scény a rozměrům celého objektu včetně prstenců.</p></section>
+      <section><h2>Kvalita podle zařízení</h2><p>Automatický profil s ruční volbou. Atmosféra a čitelné materiály tvoří základ; bloom a prostorové deformace se řídí výkonem.</p></section>
+      <section><h2>Stejné možnosti ovládání</h2><p>Myš, dotyk i klávesnice. Výběr funguje také z katalogu; pauza simulace neblokuje pohyb kamery.</p></section>
+    </div>
+    <p class="footnote">Samostatný HTML/CSS/SVG prototyp, dostupný i bez internetu. Oběhy, pauza a rychlost v přehledu fungují; velikosti, vzdálenosti a doby oběhu jsou ilustrativní. Nejde o finální render Three.js ani měření FPS. Zvuk a kvalita předvádějí pouze stav rozhraní. <a href="IMPLEMENTATION_REVIEW.md">Podrobná analýza</a> · <a href="../index.html">Současná aplikace</a></p>
+  </main>
+
+  <main class="app-screen" aria-label="Vesmírná cesta — prototyp">
+    <div class="starfield" aria-hidden="true"></div>
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Vesmírná cesta</div>
+      <div class="top-actions"><span class="prototype-tag">Návrh rozhraní</span><button class="home">⌂ Přehled</button></div>
+    </header>
+    <nav class="catalog" aria-label="Katalog vesmírných objektů">
+      <p class="catalog-heading">Vydejte se na cestu</p>
+      <div class="categories" aria-label="Kategorie">
+        <button class="category" data-category="solar" aria-pressed="true">Sluneční soustava</button>
+        <button class="category" data-category="galaxies" aria-pressed="false">Galaxie</button>
+        <button class="category" data-category="special" aria-pressed="false">Zvláštní objekty</button>
+      </div>
+      <div class="object-list"></div>
+    </nav>
+    <section class="scene-window" aria-label="Ilustrativní náhled vybraného objektu">
+      <span class="scene-caption">SLUNEČNÍ SOUSTAVA / 03</span>
+      <svg class="system-art" viewBox="0 0 1000 850" role="group" aria-label="Slunce a osm obíhajících planet. Výběrem planety otevřete detail.">
+        <defs>
+          <radialGradient id="system-sun"><stop stop-color="#fff4be"/><stop offset=".5" stop-color="#ffcd69"/><stop offset="1" stop-color="#e78132"/></radialGradient>
+          <radialGradient id="system-corona"><stop stop-color="#ffc36b" stop-opacity=".4"/><stop offset="1" stop-color="#ffb55b" stop-opacity="0"/></radialGradient>
+        </defs>
+        <g class="system-orbits" aria-hidden="true"></g>
+        <circle cx="500" cy="425" r="100" fill="url(#system-corona)" pointer-events="none"/>
+        <g class="system-planets"></g>
+      </svg>
+      <svg class="planet-art" viewBox="0 0 600 600" role="img" aria-label="Schematická ilustrace Země s modrou atmosférou">
+        <defs>
+          <radialGradient id="ocean" cx="30%" cy="25%" r="80%"><stop stop-color="#568baf"/><stop offset=".4" stop-color="#215478"/><stop offset=".75" stop-color="#102c45"/><stop offset="1" stop-color="#040b18"/></radialGradient>
+          <radialGradient id="shade" cx="28%" cy="30%" r="76%"><stop offset=".25" stop-color="#000" stop-opacity="0"/><stop offset=".62" stop-color="#020817" stop-opacity=".18"/><stop offset=".86" stop-color="#010510" stop-opacity=".8"/><stop offset="1" stop-color="#01040c" stop-opacity=".98"/></radialGradient>
+          <radialGradient id="glow"><stop offset=".82" stop-color="#5cbcf5" stop-opacity="0"/><stop offset=".89" stop-color="#46b6f0" stop-opacity=".4"/><stop offset=".92" stop-color="#60bffd" stop-opacity=".15"/><stop offset="1" stop-color="#60bffd" stop-opacity="0"/></radialGradient>
+          <clipPath id="sphere"><circle cx="300" cy="300" r="248"/></clipPath>
+          <filter id="soft"><feGaussianBlur stdDeviation="3"/></filter>
+        </defs>
+        <circle cx="300" cy="300" r="278" fill="url(#glow)"/>
+        <circle cx="300" cy="300" r="249" fill="url(#ocean)" stroke="#73c9f2" stroke-width="2"/>
+        <g clip-path="url(#sphere)">
+          <g fill="#76958b" stroke="#96b4a3" stroke-opacity=".5" stroke-width="2">
+            <path d="M263 77l33 14 17 24-8 23 23 10 18-19 36 7 16 20 43-4 20 24 46-3 43 23 20 47-16 24-28-11-18 16-20-27-24 7-6 24-22 8-19-27-27 8-14-20-30 7-17-10-28 12-10-13-26 13-15-21 15-20-16-15 10-17-19-8 4-17 29 2 5-22z"/>
+            <path d="M284 228l29-12 35 18 38 10 12 33 32 14-12 30-29 31-8 39-26 35-17-8-12-36-17-24-4-33-22-17-15-31 5-28z" fill="#b3a483"/>
+            <path d="M78 147l33-15 23 10 32-13 33 7 16 22-16 21-25 7-10 26-23 7-13 32-17-15-24 5-12-35-25-11z"/>
+            <path d="M147 292l23 6 18 23 33 14 4 26-19 29-8 40-18 22-3 28-14-9-8-31-6-27-14-31 8-25-12-21z" fill="#648e7b"/>
+            <path d="M442 389l33-18 36 12 13 24-11 25-41 2-24-13z"/>
+            <path d="M178 68l35-16 36 2-9 29-22 25-31-12z" fill="#c8dce0"/>
+          </g>
+          <g fill="none" stroke="#e3f5fa" stroke-linecap="round" filter="url(#soft)" opacity=".63">
+            <path d="M65 264c74-92 104-67 148-96s88-15 132-39" stroke-width="15"/>
+            <path d="M72 285c80-49 127-14 156-41s36-42 70-42" stroke-width="6"/>
+            <path d="M215 362c66-30 91 20 134-8s85-33 154-7" stroke-width="12"/>
+            <path d="M132 453c84-28 112 28 167 19s83-28 147-5" stroke-width="17"/>
+            <path d="M358 182c56-5 68 26 112 20s58-3 84 8" stroke-width="10"/>
+          </g>
+          <circle cx="300" cy="300" r="248" fill="url(#shade)"/>
+        </g>
+      </svg>
+      <div class="generic-art" aria-hidden="true"></div>
+      <span class="scene-label">Náš malý modrý svět</span>
+      <span class="scene-help"><span class="mouse-help">Tažením otáčíte · kolečkem přibližujete</span><span class="touch-help">Jedním prstem otáčíte · dvěma přibližujete</span></span>
+    </section>
+    <aside class="object-card" aria-label="Informace o objektu">
+      <div class="card-heading"><div class="eyebrow" id="object-type">Kamenná planeta</div><h1 id="object-name">Země</h1><p class="tagline" id="object-tagline">Místo, kterému říkáme domov.</p></div>
+      <button class="details-toggle" aria-expanded="false" aria-controls="card-more">Více ↓</button>
+      <div class="card-more" id="card-more">
+        <p class="card-copy" id="object-copy">Modré oceány, bílé mraky a tenká vrstva atmosféry. Vydejte se na cestu kolem našeho světa.</p>
+        <dl class="facts"><div><dt>Naše hvězda</dt><dd>Slunce</dd></div><div><dt>Přirozený průvodce</dt><dd>Měsíc</dd></div></dl>
+        <button class="narrate">▷ Poslechnout průvodce</button>
+        <p class="scale-note">Velikosti a vzdálenosti jsou ilustrativní.</p>
+      </div>
+    </aside>
+    <footer class="toolbar">
+      <span class="sim-state">Cesta pokračuje</span>
+      <button id="pause" aria-pressed="false">Ⅱ Pauza</button>
+      <label><span class="label-text">Rychlost</span><select id="speed" aria-label="Rychlost simulace"><option value="0.5">0,5×</option><option value="1" selected>1×</option><option value="5">5×</option><option value="10">10×</option></select></label>
+      <span class="divider"></span>
+      <button id="sound" aria-pressed="false">Zvuk: vyp.</button>
+      <label><span class="label-text">Kvalita</span><select id="quality" aria-label="Kvalita grafiky"><option>Auto</option><option>Úsporná</option><option>Vyvážená</option><option>Vysoká</option></select></label>
+      <span class="design-note">Ilustrativní měřítko</span>
+    </footer>
+    <div class="toast" role="status" aria-live="polite"></div>
+  </main>
+  <script>
+    const isScreen = document.documentElement.classList.contains('screen-mode');
+    if (!isScreen) {
+      const presets = {
+        portrait: { mobile: [390, 844], tablet: [768, 1024], notebook: [1440, 900] },
+        landscape: { mobile: [844, 390], tablet: [1024, 768], notebook: [1440, 900] },
+        compact: { mobile: [360, 640], tablet: [768, 1024], notebook: [1366, 768] }
+      };
+      const resizeFrames = () => {
+        document.querySelectorAll('.device').forEach(device => {
+          const frame = device.querySelector('iframe');
+          const stage = device.querySelector('.device-stage');
+          const [width, height] = presets[document.getElementById('orientation').value][device.dataset.device];
+          const available = device.clientWidth - parseFloat(getComputedStyle(device).paddingLeft) * 2 - 2;
+          const scale = Math.min(1, Math.max(0, available) / width);
+          frame.style.width = width + 'px';
+          frame.style.height = height + 'px';
+          frame.style.transform = `scale(${scale})`;
+          stage.style.width = width * scale + 'px';
+          stage.style.height = height * scale + 'px';
+          device.querySelector('.dimensions').textContent = `${width} × ${height}`;
+        });
+      };
+      document.querySelectorAll('iframe').forEach(frame => { frame.src = location.pathname + '?screen=1'; });
+      document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => {
+        document.querySelectorAll('[data-view]').forEach(item => item.setAttribute('aria-pressed', item === button));
+        document.querySelectorAll('iframe').forEach(frame => { frame.src = location.pathname + '?screen=1&view=' + button.dataset.view; });
+      }));
+      document.querySelectorAll('.review-controls button').forEach(button => button.addEventListener('click', () => {
+        document.querySelector('.device-grid').dataset.filter = button.dataset.filter;
+        document.querySelectorAll('.review-controls button').forEach(item => item.setAttribute('aria-pressed', item === button));
+        resizeFrames();
+      }));
+      document.getElementById('orientation').addEventListener('change', resizeFrames);
+      new ResizeObserver(resizeFrames).observe(document.querySelector('.device-grid'));
+      resizeFrames();
+    } else {
+      // Samostatný prototyp UI. Ovladače nejsou připojeny k produkční scéně.
+      const catalog = {
+        solar: [['Slunce', '#e9b25d'], ['Merkur', '#9c958a'], ['Venuše', '#e0bf83'], ['Země', '#588eae'], ['Měsíc', '#bdc3c9'], ['Mars', '#bc795e'], ['Jupiter', '#c5ac8b'], ['Saturn', '#cbbd99'], ['Uran', '#91bdc6'], ['Neptun', '#5679c4']],
+        galaxies: [['M101', '#9bb8f4'], ['M81', '#d6bd88'], ['M83', '#c78eae']],
+        special: [['Halley', '#8dd8df'], ['NEOWISE', '#e4bf7e'], ['Černá díra', '#d4996f'], ['Červí díra', '#a396df']]
+      };
+      let selected = null;
+      let category = 'solar';
+      const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+      let paused = reducedMotion.matches;
+      let simulationTime = 0;
+      let speed = 1;
+      let overview = true;
+      let lastFrame = null;
+      const earthFacts = document.querySelector('.facts').innerHTML;
+      let toastTimer;
+      const toast = message => {
+        document.querySelector('.toast').textContent = message;
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => { document.querySelector('.toast').textContent = ''; }, 3500);
+      };
+      const selectObject = (name, color) => {
+        selected = name;
+        overview = false;
+        document.querySelector('.scene-window').classList.remove('overview');
+        document.querySelector('.object-card').classList.remove('system-card');
+        document.querySelector('.facts').innerHTML = earthFacts;
+        const earth = name === 'Země';
+        document.getElementById('object-name').textContent = name;
+        document.getElementById('object-type').textContent = earth ? 'Kamenná planeta' : ({ solar: 'Sluneční soustava', galaxies: 'Galaxie', special: 'Zvláštní objekt' })[category];
+        document.getElementById('object-tagline').textContent = earth ? 'Místo, kterému říkáme domov.' : 'Další zastávka na vaší cestě.';
+        document.getElementById('object-copy').textContent = earth ? 'Modré oceány, bílé mraky a tenká vrstva atmosféry. Vydejte se na cestu kolem našeho světa.' : 'Zde bude stručná zajímavost a český komentář k vybranému objektu. Tento náhled ukazuje změnu rozhraní.';
+        document.querySelector('.scene-window').classList.toggle('other', !earth);
+        document.querySelector('.generic-art').style.setProperty('--planet-color', color);
+        document.querySelector('.facts').hidden = !earth;
+        document.querySelector('.scene-label').textContent = earth ? 'Náš malý modrý svět' : 'Ilustrativní zástupný náhled';
+        document.querySelector('.scene-caption').textContent = earth ? 'SLUNEČNÍ SOUSTAVA / 03' : name.toLocaleUpperCase('cs');
+        document.querySelector('.scene-help').textContent = 'Detail objektu · tlačítkem Přehled zpět';
+        document.querySelectorAll('.object-button').forEach(button => button.setAttribute('aria-pressed', button.dataset.name === name));
+      };
+      const renderCatalog = () => {
+        const list = document.querySelector('.object-list');
+        list.replaceChildren();
+        catalog[category].forEach(([name, color]) => {
+          const button = document.createElement('button');
+          button.className = 'object-button';
+          button.dataset.name = name;
+          button.setAttribute('aria-pressed', name === selected);
+          const orb = document.createElement('span');
+          orb.className = 'orb';
+          orb.style.setProperty('--orb', color);
+          orb.setAttribute('aria-hidden', 'true');
+          button.append(orb, document.createTextNode(name));
+          button.addEventListener('click', () => selectObject(name, color));
+          list.append(button);
+        });
+      };
+      document.querySelectorAll('.category').forEach(button => button.addEventListener('click', () => {
+        category = button.dataset.category;
+        document.querySelectorAll('.category').forEach(item => item.setAttribute('aria-pressed', item === button));
+        renderCatalog();
+      }));
+      document.querySelector('.details-toggle').addEventListener('click', event => {
+        const expanded = document.querySelector('.object-card').classList.toggle('expanded');
+        event.currentTarget.setAttribute('aria-expanded', expanded);
+        event.currentTarget.textContent = expanded ? 'Méně ↑' : 'Více ↓';
+      });
+      const updatePlayback = () => {
+        document.getElementById('pause').setAttribute('aria-pressed', paused);
+        document.getElementById('pause').textContent = paused ? '▷ Spustit' : 'Ⅱ Pauza';
+        document.querySelector('.sim-state').textContent = paused ? 'Simulace pozastavena' : 'Cesta pokračuje';
+      };
+      document.getElementById('pause').addEventListener('click', () => {
+        paused = !paused;
+        updatePlayback();
+      });
+      reducedMotion.addEventListener('change', event => { if (event.matches) { paused = true; updatePlayback(); } });
+      document.getElementById('sound').addEventListener('click', event => {
+        const enabled = event.currentTarget.getAttribute('aria-pressed') !== 'true';
+        event.currentTarget.setAttribute('aria-pressed', enabled);
+        event.currentTarget.textContent = enabled ? 'Zvuk: zap.' : 'Zvuk: vyp.';
+        toast('Náhled nastavení. Zvuk v tomto prototypu nehraje.');
+      });
+      document.getElementById('quality').addEventListener('change', () => toast('Volba kvality je ukázka UI; finální render doplní Three.js.'));
+      document.getElementById('speed').addEventListener('change', event => { speed = Number(event.target.value); });
+      document.querySelector('.narrate').addEventListener('click', () => toast('Zde začne český komentář. Nahrávky zatím nejsou součástí návrhu.'));
+      const showOverview = () => {
+        overview = true;
+        selected = null;
+        document.querySelector('[data-category="solar"]').click();
+        document.querySelector('.scene-window').classList.remove('other');
+        document.querySelector('.scene-window').classList.add('overview');
+        document.querySelector('.object-card').classList.add('system-card');
+        document.getElementById('object-type').textContent = 'Naše místo ve vesmíru';
+        document.getElementById('object-name').textContent = 'Sluneční soustava';
+        document.getElementById('object-tagline').textContent = 'Jedna hvězda. Osm planet.';
+        document.getElementById('object-copy').textContent = 'Od Merkuru po Neptun. Sledujte planety na jejich drahách a vyberte si, kam se podíváte zblízka.';
+        document.querySelector('.facts').hidden = false;
+        document.querySelector('.facts').innerHTML = '<div><dt>Ve středu</dt><dd>Slunce</dd></div><div><dt>Planet na oběžných drahách</dt><dd>8</dd></div>';
+        document.querySelector('.scene-caption').textContent = 'SLUNEČNÍ SOUSTAVA / PŘEHLED';
+        document.querySelector('.scene-label').textContent = 'Velikosti, vzdálenosti a rychlosti jsou ilustrativní';
+        document.querySelector('.scene-help').textContent = 'Vyberte planetu ve scéně nebo v katalogu';
+        document.querySelector('.toast').textContent = '';
+        updateOrbits();
+      };
+      document.querySelector('.home').addEventListener('click', showOverview);
+
+      // Živý schematický přehled; čas animace sdílí pauzu a rychlost v UI.
+      const svgElement = (tag, attributes, parent) => {
+        const element = document.createElementNS('http://www.w3.org/2000/svg', tag);
+        Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, value));
+        parent.append(element);
+        return element;
+      };
+      const definitions = document.querySelector('.system-art defs');
+      const planetLayer = document.querySelector('.system-planets');
+      const orbitLayer = document.querySelector('.system-orbits');
+      const orbitRadii = [88, 126, 170, 215, 270, 327, 384, 440];
+      const planetSizes = [7, 11, 12, 9, 25, 22, 16, 16];
+      const phases = [2.8, 4.9, .6, 3.9, 2.1, 5.8, 3.4, .15];
+      const periods = [26, 38, 52, 70, 100, 135, 175, 220];
+      const planets = catalog.solar.filter(([name]) => !['Slunce', 'Měsíc'].includes(name));
+      const makeBody = (name, color, radius, index) => {
+        const group = svgElement('g', { class: 'system-node' + (index < 2 && index >= 0 ? ' inner-planet' : ''), role: 'button', tabindex: '0', 'aria-label': 'Prohlédnout: ' + name, 'data-planet': name }, planetLayer);
+        const title = svgElement('title', {}, group);
+        title.textContent = name;
+        svgElement('circle', { r: Math.max(radius + 12, 28), class: 'hit-area' }, group);
+        if (name === 'Saturn') svgElement('ellipse', { rx: radius * 1.8, ry: radius * .55, fill: 'none', stroke: '#cbbd99', 'stroke-width': 8, transform: 'rotate(-25)' }, group);
+        let fill = 'url(#system-sun)';
+        if (index >= 0) {
+          const gradient = svgElement('radialGradient', { id: 'body-' + index, cx: '28%', cy: '25%', r: '80%' }, definitions);
+          svgElement('stop', { offset: '0', 'stop-color': '#f1f3df' }, gradient);
+          svgElement('stop', { offset: '.4', 'stop-color': color }, gradient);
+          svgElement('stop', { offset: '1', 'stop-color': '#080d1a' }, gradient);
+          fill = `url(#body-${index})`;
+        }
+        svgElement('circle', { r: radius, fill }, group);
+        const label = svgElement('text', { y: radius + 28, class: 'system-label' }, group);
+        label.textContent = name;
+        const open = () => { document.querySelector('[data-category="solar"]').click(); selectObject(name, color); document.querySelector('.home').focus({ preventScroll: true }); };
+        group.addEventListener('click', open);
+        group.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
+        return group;
+      };
+      makeBody('Slunce', '#e9b25d', 43, -1).setAttribute('transform', 'translate(500 425)');
+      const orbitingBodies = planets.map(([name, color], i) => {
+        svgElement('ellipse', { cx: 500, cy: 425, rx: orbitRadii[i], ry: orbitRadii[i] * .7, transform: 'rotate(-20 500 425)', class: 'system-orbit' + (name === 'Země' ? ' earth-orbit' : '') }, orbitLayer);
+        return makeBody(name, color, planetSizes[i], i);
+      });
+      const updateOrbits = () => {
+        const tilt = -Math.PI / 9;
+        orbitingBodies.forEach((body, i) => {
+          const angle = phases[i] + simulationTime * Math.PI * 2 / periods[i];
+          const x = Math.cos(angle) * orbitRadii[i];
+          const y = Math.sin(angle) * orbitRadii[i] * .7;
+          body.setAttribute('transform', `translate(${500 + x * Math.cos(tilt) - y * Math.sin(tilt)} ${425 + x * Math.sin(tilt) + y * Math.cos(tilt)})`);
+        });
+        document.querySelector('.system-art').dataset.time = simulationTime;
+      };
+      const animateSystem = timestamp => {
+        const dt = lastFrame === null ? 0 : Math.min((timestamp - lastFrame) / 1000, .1);
+        lastFrame = timestamp;
+        if (!paused && !document.hidden) {
+          simulationTime += dt * speed;
+          if (overview) updateOrbits();
+        }
+        requestAnimationFrame(animateSystem);
+      };
+      document.addEventListener('visibilitychange', () => { lastFrame = null; });
+      let seed = 42;
+      const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+      for (let i = 0; i < 150; i++) {
+        const star = document.createElement('i');
+        star.className = 'star';
+        const size = .7 + random() * 1.4;
+        star.style.cssText = `left:${random() * 100}%;top:${random() * 100}%;width:${size}px;height:${size}px;opacity:${.15 + random() * .5}`;
+        document.querySelector('.starfield').append(star);
+      }
+      showOverview();
+      updatePlayback();
+      updateOrbits();
+      if (new URLSearchParams(location.search).get('view') === 'earth') selectObject('Země', '#588eae');
+      requestAnimationFrame(animateSystem);
+    }
+  </script>
+</body>
+</html>

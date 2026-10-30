@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Vesmírná cesta</title>
+<link rel="stylesheet" href="styles/app.css"><link rel="stylesheet" href="styles/layout.css">
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div class="label" role="status">Startuji raketu…</div><button id="retry" hidden>Zkusit znovu</button>
+</div>
+
+<header id="topbar"><strong>Vesmírná cesta</strong></header><div id="app"></div>
+
+<aside id="objectCard">
+  <div id="title" class="visible">Sluneční soustava</div>
+  <div id="subtitle" class="visible">Jedna hvězda. Osm planet.</div>
+  <button id="detailsBtn" aria-expanded="false" aria-controls="cardMore">Více ↓</button>
+  <div id="cardMore"><p id="objectCopy"></p><div id="objectFacts" hidden></div><button id="speakBtn">▷ Vyslovit název</button><p class="scale-note">Údaje v kartě jsou skutečné astronomické hodnoty. Velikosti, vzdálenosti a rychlosti ve 3D scéně jsou ilustrativní.</p></div>
+</aside>
+
+<div id="hint">Klikni na planetu dole, nebo táhni myší &amp; toč kolečkem</div>
+
+<button id="homeBtn" title="Zpět na přehled">
+  <svg viewBox="0 0 24 24"><path d="M12 3l9 8h-3v9h-4v-6h-4v6H6v-9H3z"/></svg>
+</button>
+
+<nav id="catalog" aria-label="Katalog objektů"><div id="categories"><button data-category="solar" aria-pressed="true">Soustava</button><button data-category="galaxies" aria-pressed="false">Galaxie</button><button data-category="special" aria-pressed="false">Zvláštní objekty</button></div><div id="planetBar"></div></nav><footer id="toolbar"><button id="pauseBtn" aria-pressed="false">Ⅱ Pauza</button><select id="speed" aria-label="Rychlost simulace"><option value="0.5">0,5×</option><option value="1" selected>1×</option><option value="5">5×</option><option value="10">10×</option></select><button id="soundBtn" aria-pressed="false">Hlas: vyp.</button><select id="quality" aria-label="Kvalita vykreslování"><option value="auto">Auto</option><option value="low">Úsporná</option><option value="medium">Vyvážená</option><option value="high">Vysoká</option></select></footer><div id="sceneStatus" role="status"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module" src="src/bootstrap.js"></script>
+</body>
+</html>

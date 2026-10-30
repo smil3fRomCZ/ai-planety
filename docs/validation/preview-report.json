@@ -1,0 +1,534 @@
+{
+  "mode": "preview",
+  "browser": {
+    "protocolVersion": "1.3",
+    "product": "Chrome/156.0.8078.74",
+    "revision": "@d331de35ca8ab1358c7a17e4bd41627d55eaef51",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+    "jsVersion": "15.6.75.25"
+  },
+  "viewports": [
+    {
+      "name": "mobile",
+      "screenshot": "preview-system-mobile.png",
+      "url": "file:///C:/Users/janme/Desktop/ai-planety/docs/ui-preview.html?screen=1",
+      "ready": "complete",
+      "title": "Vesmírná cesta — návrh rozhraní pro všechna zařízení",
+      "width": 390,
+      "height": 844,
+      "overflow": false,
+      "canvas": false,
+      "buttons": 0,
+      "regions": {
+        ".topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 390,
+          "h": 64
+        },
+        ".catalog": {
+          "x": 0,
+          "y": 654,
+          "w": 390,
+          "h": 126
+        },
+        ".object-card": {
+          "x": 12,
+          "y": 557.25,
+          "w": 366,
+          "h": 86.75
+        },
+        ".toolbar": {
+          "x": 0,
+          "y": 780,
+          "w": 390,
+          "h": 64
+        },
+        ".scene-window": {
+          "x": 0,
+          "y": 64,
+          "w": 390,
+          "h": 493.25
+        }
+      },
+      "systemChecks": {
+        "orbitCount": 8,
+        "bodyCount": 9,
+        "moving": true,
+        "frozen": true,
+        "detail": true,
+        "home": true,
+        "retained": true,
+        "speedChanged": true,
+        "speedRatio": 10.488505747126398,
+        "panelsWithinViewport": true,
+        "panelsOverlap": false
+      },
+      "interactionChecks": {
+        "selectedObjects": 17,
+        "allSelectionsPass": true,
+        "pause": true,
+        "sound": true,
+        "details": true,
+        "expandedPanelsWithinViewport": true,
+        "expandedPanelsOverlap": false
+      }
+    },
+    {
+      "name": "mobile-small",
+      "screenshot": "preview-system-mobile-small.png",
+      "url": "file:///C:/Users/janme/Desktop/ai-planety/docs/ui-preview.html?screen=1",
+      "ready": "complete",
+      "title": "Vesmírná cesta — návrh rozhraní pro všechna zařízení",
+      "width": 360,
+      "height": 640,
+      "overflow": false,
+      "canvas": false,
+      "buttons": 0,
+      "regions": {
+        ".topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 360,
+          "h": 64
+        },
+        ".catalog": {
+          "x": 0,
+          "y": 450,
+          "w": 360,
+          "h": 126
+        },
+        ".object-card": {
+          "x": 12,
+          "y": 353.25,
+          "w": 336,
+          "h": 86.75
+        },
+        ".toolbar": {
+          "x": 0,
+          "y": 576,
+          "w": 360,
+          "h": 64
+        },
+        ".scene-window": {
+          "x": 0,
+          "y": 64,
+          "w": 360,
+          "h": 289.25
+        }
+      },
+      "systemChecks": {
+        "orbitCount": 8,
+        "bodyCount": 9,
+        "moving": true,
+        "frozen": true,
+        "detail": true,
+        "home": true,
+        "retained": true,
+        "speedChanged": true,
+        "speedRatio": 11.045454545454511,
+        "panelsWithinViewport": true,
+        "panelsOverlap": false
+      },
+      "interactionChecks": {
+        "selectedObjects": 17,
+        "allSelectionsPass": true,
+        "pause": true,
+        "sound": true,
+        "details": true,
+        "expandedPanelsWithinViewport": true,
+        "expandedPanelsOverlap": false
+      }
+    },
+    {
+      "name": "mobile-landscape",
+      "screenshot": "preview-system-mobile-landscape.png",
+      "url": "file:///C:/Users/janme/Desktop/ai-planety/docs/ui-preview.html?screen=1",
+      "ready": "complete",
+      "title": "Vesmírná cesta — návrh rozhraní pro všechna zařízení",
+      "width": 844,
+      "height": 390,
+      "overflow": false,
+      "canvas": false,
+      "buttons": 0,
+      "regions": {
+        ".topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 844,
+          "h": 54
+        },
+        ".catalog": {
+          "x": 10,
+          "y": 62,
+          "w": 166,
+          "h": 262
+        },
+        ".object-card": {
+          "x": 626,
+          "y": 62,
+          "w": 208,
+          "h": 262
+        },
+        ".toolbar": {
+          "x": 0,
+          "y": 332,
+          "w": 844,
+          "h": 58
+        },
+        ".scene-window": {
+          "x": 176,
+          "y": 54,
+          "w": 450,
+          "h": 278
+        }
+      },
+      "systemChecks": {
+        "orbitCount": 8,
+        "bodyCount": 9,
+        "moving": true,
+        "frozen": true,
+        "detail": true,
+        "home": true,
+        "retained": true,
+        "speedChanged": true,
+        "speedRatio": 9.047292666209708,
+        "panelsWithinViewport": true,
+        "panelsOverlap": false
+      },
+      "interactionChecks": {
+        "selectedObjects": 17,
+        "allSelectionsPass": true,
+        "pause": true,
+        "sound": true,
+        "details": true,
+        "expandedPanelsWithinViewport": true,
+        "expandedPanelsOverlap": false
+      }
+    },
+    {
+      "name": "tablet",
+      "screenshot": "preview-system-tablet.png",
+      "url": "file:///C:/Users/janme/Desktop/ai-planety/docs/ui-preview.html?screen=1",
+      "ready": "complete",
+      "title": "Vesmírná cesta — návrh rozhraní pro všechna zařízení",
+      "width": 768,
+      "height": 1024,
+      "overflow": false,
+      "canvas": false,
+      "buttons": 0,
+      "regions": {
+        ".topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 768,
+          "h": 76
+        },
+        ".catalog": {
+          "x": 16,
+          "y": 94,
+          "w": 182,
+          "h": 836
+        },
+        ".object-card": {
+          "x": 216,
+          "y": 698,
+          "w": 534,
+          "h": 232
+        },
+        ".toolbar": {
+          "x": 0,
+          "y": 948,
+          "w": 768,
+          "h": 76
+        },
+        ".scene-window": {
+          "x": 198,
+          "y": 76,
+          "w": 570,
+          "h": 622
+        }
+      },
+      "systemChecks": {
+        "orbitCount": 8,
+        "bodyCount": 9,
+        "moving": true,
+        "frozen": true,
+        "detail": true,
+        "home": true,
+        "retained": true,
+        "speedChanged": true,
+        "speedRatio": 11.044663133989351,
+        "panelsWithinViewport": true,
+        "panelsOverlap": false
+      },
+      "interactionChecks": {
+        "selectedObjects": 17,
+        "allSelectionsPass": true,
+        "pause": true,
+        "sound": true,
+        "details": true,
+        "expandedPanelsWithinViewport": true,
+        "expandedPanelsOverlap": false
+      }
+    },
+    {
+      "name": "tablet-landscape",
+      "screenshot": "preview-system-tablet-landscape.png",
+      "url": "file:///C:/Users/janme/Desktop/ai-planety/docs/ui-preview.html?screen=1",
+      "ready": "complete",
+      "title": "Vesmírná cesta — návrh rozhraní pro všechna zařízení",
+      "width": 1024,
+      "height": 768,
+      "overflow": false,
+      "canvas": false,
+      "buttons": 0,
+      "regions": {
+        ".topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1024,
+          "h": 76
+        },
+        ".catalog": {
+          "x": 16,
+          "y": 94,
+          "w": 182,
+          "h": 580
+        },
+        ".object-card": {
+          "x": 216,
+          "y": 442,
+          "w": 790,
+          "h": 232
+        },
+        ".toolbar": {
+          "x": 0,
+          "y": 692,
+          "w": 1024,
+          "h": 76
+        },
+        ".scene-window": {
+          "x": 198,
+          "y": 76,
+          "w": 826,
+          "h": 366
+        }
+      },
+      "systemChecks": {
+        "orbitCount": 8,
+        "bodyCount": 9,
+        "moving": true,
+        "frozen": true,
+        "detail": true,
+        "home": true,
+        "retained": true,
+        "speedChanged": true,
+        "speedRatio": 9.054146675805345,
+        "panelsWithinViewport": true,
+        "panelsOverlap": false
+      },
+      "interactionChecks": {
+        "selectedObjects": 17,
+        "allSelectionsPass": true,
+        "pause": true,
+        "sound": true,
+        "details": true,
+        "expandedPanelsWithinViewport": true,
+        "expandedPanelsOverlap": false
+      }
+    },
+    {
+      "name": "notebook",
+      "screenshot": "preview-system-notebook.png",
+      "url": "file:///C:/Users/janme/Desktop/ai-planety/docs/ui-preview.html?screen=1",
+      "ready": "complete",
+      "title": "Vesmírná cesta — návrh rozhraní pro všechna zařízení",
+      "width": 1440,
+      "height": 900,
+      "overflow": false,
+      "canvas": false,
+      "buttons": 0,
+      "regions": {
+        ".topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1440,
+          "h": 80
+        },
+        ".catalog": {
+          "x": 20,
+          "y": 104,
+          "w": 212,
+          "h": 692
+        },
+        ".object-card": {
+          "x": 1152,
+          "y": 201.125,
+          "w": 264,
+          "h": 497.75
+        },
+        ".toolbar": {
+          "x": 0,
+          "y": 820,
+          "w": 1440,
+          "h": 80
+        },
+        ".scene-window": {
+          "x": 232,
+          "y": 80,
+          "w": 920,
+          "h": 740
+        }
+      },
+      "systemChecks": {
+        "orbitCount": 8,
+        "bodyCount": 9,
+        "moving": true,
+        "frozen": true,
+        "detail": true,
+        "home": true,
+        "retained": true,
+        "speedChanged": true,
+        "speedRatio": 12.630780894617136,
+        "panelsWithinViewport": true,
+        "panelsOverlap": false
+      },
+      "interactionChecks": {
+        "selectedObjects": 17,
+        "allSelectionsPass": true,
+        "pause": true,
+        "sound": true,
+        "details": true,
+        "expandedPanelsWithinViewport": true,
+        "expandedPanelsOverlap": false
+      }
+    },
+    {
+      "name": "notebook-small",
+      "screenshot": "preview-system-notebook-small.png",
+      "url": "file:///C:/Users/janme/Desktop/ai-planety/docs/ui-preview.html?screen=1",
+      "ready": "complete",
+      "title": "Vesmírná cesta — návrh rozhraní pro všechna zařízení",
+      "width": 1366,
+      "height": 768,
+      "overflow": false,
+      "canvas": false,
+      "buttons": 0,
+      "regions": {
+        ".topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1366,
+          "h": 80
+        },
+        ".catalog": {
+          "x": 20,
+          "y": 104,
+          "w": 212,
+          "h": 560
+        },
+        ".object-card": {
+          "x": 1078,
+          "y": 135.125,
+          "w": 264,
+          "h": 497.75
+        },
+        ".toolbar": {
+          "x": 0,
+          "y": 688,
+          "w": 1366,
+          "h": 80
+        },
+        ".scene-window": {
+          "x": 232,
+          "y": 80,
+          "w": 846,
+          "h": 608
+        }
+      },
+      "systemChecks": {
+        "orbitCount": 8,
+        "bodyCount": 9,
+        "moving": true,
+        "frozen": true,
+        "detail": true,
+        "home": true,
+        "retained": true,
+        "speedChanged": true,
+        "speedRatio": 9.441509433962269,
+        "panelsWithinViewport": true,
+        "panelsOverlap": false
+      },
+      "interactionChecks": {
+        "selectedObjects": 17,
+        "allSelectionsPass": true,
+        "pause": true,
+        "sound": true,
+        "details": true,
+        "expandedPanelsWithinViewport": true,
+        "expandedPanelsOverlap": false
+      }
+    }
+  ],
+  "note": "Headless Chrome viewport emulation at DPR 1 with software rendering; not real mobile hardware or GPU performance measurement. Layout mode reconstructs the 16 catalog buttons with original CSS, without loading Three.js.",
+  "reducedMotion": true,
+  "overview": {
+    "variants": [
+      {
+        "value": "portrait",
+        "frames": [
+          {
+            "width": "1440px",
+            "height": "900px"
+          },
+          {
+            "width": "768px",
+            "height": "1024px"
+          },
+          {
+            "width": "390px",
+            "height": "844px"
+          }
+        ]
+      },
+      {
+        "value": "landscape",
+        "frames": [
+          {
+            "width": "1440px",
+            "height": "900px"
+          },
+          {
+            "width": "1024px",
+            "height": "768px"
+          },
+          {
+            "width": "844px",
+            "height": "390px"
+          }
+        ]
+      },
+      {
+        "value": "compact",
+        "frames": [
+          {
+            "width": "1366px",
+            "height": "768px"
+          },
+          {
+            "width": "768px",
+            "height": "1024px"
+          },
+          {
+            "width": "360px",
+            "height": "640px"
+          }
+        ]
+      }
+    ],
+    "iframeCount": 3,
+    "overflow": false
+  },
+  "events": []
+}

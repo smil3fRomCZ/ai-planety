@@ -1,0 +1,377 @@
+{
+  "mode": "layout",
+  "browser": {
+    "protocolVersion": "1.3",
+    "product": "Chrome/156.0.8078.74",
+    "revision": "@d331de35ca8ab1358c7a17e4bd41627d55eaef51",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+    "jsVersion": "15.6.75.25"
+  },
+  "viewports": [
+    {
+      "name": "mobile",
+      "screenshot": "layout-mobile.png",
+      "url": "file:///C:/Users/janme/Desktop/ai-planety/index.html",
+      "ready": "complete",
+      "title": "Vesmírná cesta",
+      "width": 390,
+      "height": 844,
+      "overflow": false,
+      "canvas": false,
+      "buttons": 16,
+      "regions": {
+        "#planetBar": {
+          "x": 97.5,
+          "y": -914,
+          "w": 195,
+          "h": 1740
+        },
+        "#title": {
+          "x": 128.4765625,
+          "y": 24,
+          "w": 133.046875,
+          "h": 64
+        },
+        "#hint": {
+          "x": 97.5,
+          "y": 651,
+          "w": 195,
+          "h": 63
+        }
+      }
+    },
+    {
+      "name": "mobile-small",
+      "screenshot": "layout-mobile-small.png",
+      "url": "file:///C:/Users/janme/Desktop/ai-planety/index.html",
+      "ready": "complete",
+      "title": "Vesmírná cesta",
+      "width": 360,
+      "height": 640,
+      "overflow": false,
+      "canvas": false,
+      "buttons": 16,
+      "regions": {
+        "#planetBar": {
+          "x": 90,
+          "y": -1118,
+          "w": 180,
+          "h": 1740
+        },
+        "#title": {
+          "x": 113.4765625,
+          "y": 24,
+          "w": 133.046875,
+          "h": 64
+        },
+        "#hint": {
+          "x": 90,
+          "y": 447,
+          "w": 180,
+          "h": 63
+        }
+      }
+    },
+    {
+      "name": "mobile-landscape",
+      "screenshot": "layout-mobile-landscape.png",
+      "url": "file:///C:/Users/janme/Desktop/ai-planety/index.html",
+      "ready": "complete",
+      "title": "Vesmírná cesta",
+      "width": 844,
+      "height": 390,
+      "overflow": false,
+      "canvas": false,
+      "buttons": 16,
+      "regions": {
+        "#planetBar": {
+          "x": 211,
+          "y": -72,
+          "w": 422,
+          "h": 444
+        },
+        "#title": {
+          "x": 355.4765625,
+          "y": 24,
+          "w": 133.046875,
+          "h": 64
+        },
+        "#hint": {
+          "x": 227.8125,
+          "y": 239,
+          "w": 388.375,
+          "h": 21
+        }
+      }
+    },
+    {
+      "name": "tablet",
+      "screenshot": "layout-tablet.png",
+      "url": "file:///C:/Users/janme/Desktop/ai-planety/index.html",
+      "ready": "complete",
+      "title": "Vesmírná cesta",
+      "width": 768,
+      "height": 1024,
+      "overflow": false,
+      "canvas": false,
+      "buttons": 16,
+      "regions": {
+        "#planetBar": {
+          "x": 192,
+          "y": 454,
+          "w": 384,
+          "h": 552
+        },
+        "#title": {
+          "x": 317.4765625,
+          "y": 24,
+          "w": 133.046875,
+          "h": 64
+        },
+        "#hint": {
+          "x": 192,
+          "y": 852,
+          "w": 384,
+          "h": 42
+        }
+      }
+    },
+    {
+      "name": "tablet-landscape",
+      "screenshot": "layout-tablet-landscape.png",
+      "url": "file:///C:/Users/janme/Desktop/ai-planety/index.html",
+      "ready": "complete",
+      "title": "Vesmírná cesta",
+      "width": 1024,
+      "height": 768,
+      "overflow": false,
+      "canvas": false,
+      "buttons": 16,
+      "regions": {
+        "#planetBar": {
+          "x": 256,
+          "y": 306,
+          "w": 512,
+          "h": 444
+        },
+        "#title": {
+          "x": 445.4765625,
+          "y": 24,
+          "w": 133.046875,
+          "h": 64
+        },
+        "#hint": {
+          "x": 317.8125,
+          "y": 617,
+          "w": 388.375,
+          "h": 21
+        }
+      }
+    },
+    {
+      "name": "notebook",
+      "screenshot": "layout-notebook.png",
+      "url": "file:///C:/Users/janme/Desktop/ai-planety/index.html",
+      "ready": "complete",
+      "title": "Vesmírná cesta",
+      "width": 1440,
+      "height": 900,
+      "overflow": false,
+      "canvas": false,
+      "buttons": 16,
+      "regions": {
+        "#planetBar": {
+          "x": 360,
+          "y": 546,
+          "w": 720,
+          "h": 336
+        },
+        "#title": {
+          "x": 653.4765625,
+          "y": 24,
+          "w": 133.046875,
+          "h": 64
+        },
+        "#hint": {
+          "x": 525.8125,
+          "y": 749,
+          "w": 388.375,
+          "h": 21
+        }
+      }
+    },
+    {
+      "name": "notebook-small",
+      "screenshot": "layout-notebook-small.png",
+      "url": "file:///C:/Users/janme/Desktop/ai-planety/index.html",
+      "ready": "complete",
+      "title": "Vesmírná cesta",
+      "width": 1366,
+      "height": 768,
+      "overflow": false,
+      "canvas": false,
+      "buttons": 16,
+      "regions": {
+        "#planetBar": {
+          "x": 341.5,
+          "y": 414,
+          "w": 683,
+          "h": 336
+        },
+        "#title": {
+          "x": 616.4765625,
+          "y": 24,
+          "w": 133.046875,
+          "h": 64
+        },
+        "#hint": {
+          "x": 488.8125,
+          "y": 617,
+          "w": 388.375,
+          "h": 21
+        }
+      }
+    }
+  ],
+  "note": "Headless Chrome viewport emulation at DPR 1 with software rendering; not real mobile hardware or GPU performance measurement. Layout mode reconstructs the 16 catalog buttons with original CSS, without loading Three.js.",
+  "events": [
+    {
+      "method": "Network.loadingFailed",
+      "params": {
+        "requestId": "8800.14",
+        "timestamp": 1049894.455427,
+        "type": "Script",
+        "errorText": "net::ERR_NETWORK_ACCESS_DENIED",
+        "canceled": false
+      }
+    },
+    {
+      "method": "Log.entryAdded",
+      "params": {
+        "entry": {
+          "source": "network",
+          "level": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+          "timestamp": 1793381565343.822,
+          "url": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "networkRequestId": "8800.14"
+        }
+      }
+    },
+    {
+      "method": "Network.loadingFailed",
+      "params": {
+        "requestId": "8800.15",
+        "timestamp": 1049894.455479,
+        "type": "Script",
+        "errorText": "net::ERR_NETWORK_ACCESS_DENIED",
+        "canceled": false
+      }
+    },
+    {
+      "method": "Log.entryAdded",
+      "params": {
+        "entry": {
+          "source": "network",
+          "level": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+          "timestamp": 1793381565343.866,
+          "url": "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js",
+          "networkRequestId": "8800.15"
+        }
+      }
+    },
+    {
+      "method": "Network.loadingFailed",
+      "params": {
+        "requestId": "8800.17",
+        "timestamp": 1049894.580925,
+        "type": "Script",
+        "errorText": "net::ERR_NETWORK_ACCESS_DENIED",
+        "canceled": false
+      }
+    },
+    {
+      "method": "Log.entryAdded",
+      "params": {
+        "entry": {
+          "source": "network",
+          "level": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+          "timestamp": 1793381565469.315,
+          "url": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "networkRequestId": "8800.17"
+        }
+      }
+    },
+    {
+      "method": "Network.loadingFailed",
+      "params": {
+        "requestId": "8800.18",
+        "timestamp": 1049894.581491,
+        "type": "Script",
+        "errorText": "net::ERR_NETWORK_ACCESS_DENIED",
+        "canceled": false
+      }
+    },
+    {
+      "method": "Log.entryAdded",
+      "params": {
+        "entry": {
+          "source": "network",
+          "level": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+          "timestamp": 1793381565469.879,
+          "url": "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js",
+          "networkRequestId": "8800.18"
+        }
+      }
+    },
+    {
+      "method": "Network.loadingFailed",
+      "params": {
+        "requestId": "8800.20",
+        "timestamp": 1049895.182362,
+        "type": "Script",
+        "errorText": "net::ERR_NETWORK_ACCESS_DENIED",
+        "canceled": false
+      }
+    },
+    {
+      "method": "Log.entryAdded",
+      "params": {
+        "entry": {
+          "source": "network",
+          "level": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+          "timestamp": 1793381566070.754,
+          "url": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "networkRequestId": "8800.20"
+        }
+      }
+    },
+    {
+      "method": "Network.loadingFailed",
+      "params": {
+        "requestId": "8800.21",
+        "timestamp": 1049895.18261,
+        "type": "Script",
+        "errorText": "net::ERR_NETWORK_ACCESS_DENIED",
+        "canceled": false
+      }
+    },
+    {
+      "method": "Log.entryAdded",
+      "params": {
+        "entry": {
+          "source": "network",
+          "level": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+          "timestamp": 1793381566070.997,
+          "url": "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js",
+          "networkRequestId": "8800.21"
+        }
+      }
+    }
+  ]
+}

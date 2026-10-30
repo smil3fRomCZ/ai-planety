@@ -1,0 +1,1281 @@
+
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+import { BODIES, MOON_TEX, GALAXY_BG } from './bodies.js';
+import { createSimulation } from './state.js';
+import { bindUi } from './ui.js';
+import { renderFacts } from './facts-card.js';
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const simulation = createSimulation(reducedMotion.matches);
+let soundEnabled = false;
+let ui;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, document.getElementById('app').clientWidth / document.getElementById('app').clientHeight, 0.1, 5000);
+const HOME_POS = new THREE.Vector3(0, 95, 200);
+camera.position.copy(HOME_POS);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setSize(document.getElementById('app').clientWidth, document.getElementById('app').clientHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+document.getElementById('app').appendChild(renderer.domElement);
+
+// Ovládání kamery
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 3;
+controls.maxDistance = 2200;
+
+// ========== HVĚZDNÉ POZADÍ ==========
+function createStarfield() {
+  const geom = new THREE.BufferGeometry();
+  const count = 6000;
+  const pos = new Float32Array(count * 3);
+  const col = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const r = 1500 + Math.random() * 800;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    pos[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+    pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    pos[i * 3 + 2] = r * Math.cos(phi);
+    const c = 0.6 + Math.random() * 0.4;
+    col[i * 3]     = c;
+    col[i * 3 + 1] = c * (0.85 + Math.random() * 0.15);
+    col[i * 3 + 2] = c * (0.9 + Math.random() * 0.1);
+  }
+  geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geom.setAttribute('color',    new THREE.BufferAttribute(col, 3));
+  const mat = new THREE.PointsMaterial({ size: 1.6, vertexColors: true, sizeAttenuation: true, transparent: true, opacity: 0.9 });
+  return new THREE.Points(geom, mat);
+}
+scene.add(createStarfield());
+
+// Galaktická mlhovina - velká koule s texturou Mléčné dráhy jako pozadí
+let textureFailures = 0;
+const manager = new THREE.LoadingManager();
+manager.onProgress = (url, loaded, total) => { document.querySelector('#loading .label').textContent = `Načítám textury ${loaded} / ${total}`; };
+manager.onError = () => { textureFailures++; };
+manager.onLoad = () => finishLoading();
+const loader = new THREE.TextureLoader(manager);
+loader.setCrossOrigin('anonymous');
+
+loader.load(
+  GALAXY_BG,
+  (texture) => {
+    texture.mapping = THREE.EquirectangularReflectionMapping;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    scene.background = texture;
+    scene.backgroundIntensity = 0.45;
+  },
+  undefined,
+  (err) => { console.warn('Galaxy background failed', err); }
+);
+
+// ========== SVĚTLA ==========
+// Slunce vyzařuje světlo z centra (bez útlumu, aby vnější planety nebyly tmavé)
+const sunLight = new THREE.PointLight(0xfff2cc, 2.5, 0, 0);
+sunLight.position.set(0, 0, 0);
+scene.add(sunLight);
+
+// Lehké ambientní pro detail v noci planet
+scene.add(new THREE.AmbientLight(0x607090, 0.35));
+
+// ========== MLUVENÉ NÁZVY (Web Speech API) ==========
+let czechVoice = null;
+function pickCzechVoice() {
+  const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  czechVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('cs'))
+            || voices.find(v => /czech|česk/i.test(v.name))
+            || null;
+}
+if (window.speechSynthesis) {
+  pickCzechVoice();
+  window.speechSynthesis.onvoiceschanged = pickCzechVoice;
+}
+function speak(text, explicit = false) {
+  if (!window.speechSynthesis || (!soundEnabled && !explicit)) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'cs-CZ';
+  if (czechVoice) u.voice = czechVoice;
+  u.rate = 0.95;
+  u.pitch = 1.05;
+  window.speechSynthesis.speak(u);
+}
+
+// ========== REGISTR CÍLŮ (planety + zvláštní objekty) ==========
+// Každý cíl: { id, name, info, getWorldPos: () => Vector3, radius, voice? }
+const targets = {};
+function registerTarget(t) { targets[t.id] = t; }
+
+// ========== STAVBA TĚLES ==========
+const bodyMap = {};       // id -> { mesh, group, data, ... }
+const clickables = [];    // pro raycaster
+
+function buildBodies() {
+  BODIES.forEach((d, index) => {
+    const group = new THREE.Group();   // orbitní pivot (rotuje kolem Slunce)
+    scene.add(group);
+    group.rotation.y = [0, .6, 3.8, 2.4, 5.3, .2, 4.5, 1.5, 3][index];
+
+    // Geometrie + materiál
+    const geo = new THREE.SphereGeometry(d.radius, 64, 64);
+    let mat;
+    if (d.emissive) {
+      // Slunce: bez osvětlení, bez tone-mappingu (aby nevybledlo na bílou)
+      mat = new THREE.MeshBasicMaterial({ color: d.color, toneMapped: false });
+    } else {
+      mat = new THREE.MeshStandardMaterial({ color: d.color, roughness: 0.95, metalness: 0.0 });
+    }
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(d.distance, 0, 0);
+    mesh.userData.id = d.id;
+    group.add(mesh);
+    clickables.push(mesh);
+
+    // Slunce - dvě vrstvy korony (vnitřní žlutá + vnější oranžová)
+    if (d.emissive) {
+      const coronaInner = new THREE.Mesh(
+        new THREE.SphereGeometry(d.radius * 1.15, 32, 32),
+        new THREE.MeshBasicMaterial({ color: 0xffcc66, transparent: true, opacity: 0.35, side: THREE.BackSide, blending: THREE.AdditiveBlending, toneMapped: false })
+      );
+      mesh.add(coronaInner);
+      const coronaOuter = new THREE.Mesh(
+        new THREE.SphereGeometry(d.radius * 1.45, 32, 32),
+        new THREE.MeshBasicMaterial({ color: 0xff8833, transparent: true, opacity: 0.18, side: THREE.BackSide, blending: THREE.AdditiveBlending, toneMapped: false })
+      );
+      mesh.add(coronaOuter);
+    }
+
+    // Načti texturu (asynchronně, fallback zůstává barva)
+    loader.load(
+      d.tex,
+      (texture) => {
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        mat.map = texture;
+        // Pro Slunce nech teplý nádech (texture * warm tint), pro planety bílá (texture as-is)
+        mat.color = d.emissive ? new THREE.Color(0xffd9a0) : new THREE.Color(0xffffff);
+        mat.needsUpdate = true;
+      },
+      undefined,
+      (err) => { console.warn('Texture failed for ' + d.id + ':', d.tex, err); }
+    );
+
+    // Mraky pro Zemi
+    if (d.clouds) {
+      const cloudGeo = new THREE.SphereGeometry(d.radius * 1.015, 64, 64);
+      const cloudMat = new THREE.MeshStandardMaterial({ transparent: true, opacity: 0.45, depthWrite: false });
+      const clouds = new THREE.Mesh(cloudGeo, cloudMat);
+      mesh.add(clouds);
+      loader.load(d.clouds, (t) => {
+        t.colorSpace = THREE.SRGBColorSpace;
+        cloudMat.map = t;
+        cloudMat.alphaMap = t;
+        cloudMat.transparent = true;
+        cloudMat.needsUpdate = true;
+      });
+      mesh.userData.clouds = clouds;
+    }
+
+    // Měsíc pro Zemi
+    if (d.moon) {
+      const moonPivot = new THREE.Group();
+      group.add(moonPivot);
+      moonPivot.position.copy(mesh.position);
+      const moonGeo = new THREE.SphereGeometry(0.65, 32, 32);
+      const moonMat = new THREE.MeshStandardMaterial({ color: 0xbbbbbb, roughness: 1.0 });
+      const moon = new THREE.Mesh(moonGeo, moonMat);
+      moon.position.set(5.5, 0, 0);
+      moonPivot.add(moon);
+      loader.load(MOON_TEX, (t) => {
+        t.colorSpace = THREE.SRGBColorSpace;
+        moonMat.map = t;
+        moonMat.color = new THREE.Color(0xffffff);
+        moonMat.needsUpdate = true;
+      }, undefined, (err) => console.warn('Moon texture failed', err));
+      mesh.userData.moonPivot = moonPivot;
+    }
+
+    // Prstence Saturnu
+    if (d.ring) {
+      const ringGeo = new THREE.RingGeometry(d.radius * 1.3, d.radius * 2.3, 96);
+      // Upravit UV aby textura šla od vnitřku ven (kruhově)
+      const pos = ringGeo.attributes.position;
+      const uv = ringGeo.attributes.uv;
+      const v3 = new THREE.Vector3();
+      for (let i = 0; i < pos.count; i++) {
+        v3.fromBufferAttribute(pos, i);
+        const r = v3.length();
+        const u = (r - d.radius * 1.3) / (d.radius * 2.3 - d.radius * 1.3);
+        uv.setXY(i, u, 0.5);
+      }
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.95 });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = -Math.PI / 2 + 0.18; // mírný sklon
+      mesh.add(ring);
+      loader.load(d.ring, (t) => {
+        t.colorSpace = THREE.SRGBColorSpace;
+        ringMat.map = t;
+        ringMat.alphaMap = t;
+        ringMat.needsUpdate = true;
+      });
+    }
+
+    // Oběžná dráha jako kruh
+    if (d.distance > 0) {
+      const orbitGeo = new THREE.BufferGeometry();
+      const segs = 256;
+      const orbitPos = new Float32Array((segs + 1) * 3);
+      for (let i = 0; i <= segs; i++) {
+        const a = (i / segs) * Math.PI * 2;
+        orbitPos[i * 3]     = Math.cos(a) * d.distance;
+        orbitPos[i * 3 + 1] = 0;
+        orbitPos[i * 3 + 2] = Math.sin(a) * d.distance;
+      }
+      orbitGeo.setAttribute('position', new THREE.BufferAttribute(orbitPos, 3));
+      const orbitMat = new THREE.LineBasicMaterial({ color: 0x6cb6ff, transparent: true, opacity: 0.18 });
+      const orbit = new THREE.Line(orbitGeo, orbitMat);
+      scene.add(orbit);
+    }
+
+    bodyMap[d.id] = { mesh, group, data: d };
+
+    // Registruj planetu jako cíl pro letový systém
+    registerTarget({
+      id: d.id,
+      name: d.name,
+      info: d.info,
+      radius: d.ring ? d.radius * 2.3 : d.radius,
+      getWorldPos: () => { const v = new THREE.Vector3(); mesh.getWorldPosition(v); return v; },
+    });
+  });
+}
+buildBodies();
+
+// ========== MLHOVINY V POZADÍ ==========
+function createNebulaTexture(palette) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const ctx = c.getContext('2d');
+  const CX = 256, CY = 256;
+
+  // Soft cloudy blobs - omezené ke středu, aby nepřesahovaly přes okraj
+  for (let i = 0; i < 45; i++) {
+    // Bias k centru pomocí druhé mocniny náhody
+    const ang = Math.random() * Math.PI * 2;
+    const rad = Math.pow(Math.random(), 0.7) * 160;
+    const x = CX + Math.cos(ang) * rad;
+    const y = CY + Math.sin(ang) * rad;
+    const r = 50 + Math.random() * 130;
+    const col = palette[Math.floor(Math.random() * palette.length)];
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0,   col + 'aa');
+    g.addColorStop(0.4, col + '40');
+    g.addColorStop(1,   col + '00');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 512, 512);
+  }
+
+  // Hvězdy uvnitř mlhoviny
+  for (let i = 0; i < 140; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const rad = Math.pow(Math.random(), 0.6) * 220;
+    const x = CX + Math.cos(ang) * rad;
+    const y = CY + Math.sin(ang) * rad;
+    const r = 0.4 + Math.random() * 1.6;
+    ctx.fillStyle = 'rgba(255,255,255,' + (0.4 + Math.random() * 0.5) + ')';
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // KLÍČOVÝ KROK - radiální maska, která vyhladí okraje do průhlednosti
+  // (jinak by se sprite jevil jako čtverec se zářícím vnitřkem)
+  ctx.globalCompositeOperation = 'destination-in';
+  const mask = ctx.createRadialGradient(CX, CY, 60, CX, CY, 256);
+  mask.addColorStop(0,   'rgba(0,0,0,1)');
+  mask.addColorStop(0.6, 'rgba(0,0,0,0.9)');
+  mask.addColorStop(1,   'rgba(0,0,0,0)');
+  ctx.fillStyle = mask;
+  ctx.fillRect(0, 0, 512, 512);
+  ctx.globalCompositeOperation = 'source-over';
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function placeNebula(palette, position, scale) {
+  const tex = createNebulaTexture(palette);
+  const mat = new THREE.SpriteMaterial({
+    map: tex,
+    transparent: true,
+    opacity: 0.85,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const sprite = new THREE.Sprite(mat);
+  sprite.position.copy(position);
+  sprite.scale.set(scale, scale, 1);
+  scene.add(sprite);
+}
+
+placeNebula(['#ff4488', '#aa55ff', '#4477ff'], new THREE.Vector3(-900,  250, -1200), 800);  // Orion-like (růžovo-fialová)
+placeNebula(['#22ddaa', '#44ff66', '#11ccaa'], new THREE.Vector3( 1300, -150,  900),  650);  // zelená
+placeNebula(['#ff8855', '#ffaa22', '#dd4422'], new THREE.Vector3(-1500, -350,  600),  600);  // oranžovo-červená
+placeNebula(['#5588ff', '#88aaff', '#ffffff'], new THREE.Vector3( 700,  500, -1500), 900);  // modrá
+placeNebula(['#ff66cc', '#ff99dd', '#ddaaff'], new THREE.Vector3( 1600,  300,    0),  700);  // růžová (Helix-like)
+placeNebula(['#33ccff', '#66eeff', '#aaffee'], new THREE.Vector3(-200,  900,  1400),  750);  // tyrkysová (Cat's Eye)
+placeNebula(['#ffee99', '#ffcc66', '#ff9944'], new THREE.Vector3( 200, -800, -1300),  680);  // zlato-žlutá
+placeNebula(['#9966ff', '#cc88ff', '#6644cc'], new THREE.Vector3(-1700,  500, -200),  720);  // fialová
+placeNebula(['#ff5555', '#ffaa44', '#ffee88'], new THREE.Vector3( 1100,  700,  1100), 850);  // ohnivá (Carina-like)
+placeNebula(['#44ccff', '#ffffff', '#aaeeff'], new THREE.Vector3(-600, -700,   200),  600);  // modro-bílá
+
+// ========== KOMETY ==========
+class Comet {
+  constructor({ id, name, info, a, b, tilt, phase, speed, color, headRadius = 0.6 }) {
+    this.id = id; this.name = name; this.info = info;
+    this.a = a; this.b = b; this.speed = speed; this.color = color;
+    this.t = phase;
+
+    this.group = new THREE.Group();
+    this.group.rotation.x = tilt;
+    scene.add(this.group);
+
+    // Hlava - jasná koule + glow
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(headRadius, 16, 16),
+      new THREE.MeshBasicMaterial({ color, toneMapped: false })
+    );
+    head.userData.id = id;
+    this.head = head;
+    this.group.add(head);
+    clickables.push(head);
+
+    const glow = new THREE.Mesh(
+      new THREE.SphereGeometry(headRadius * 2.5, 16, 16),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35, side: THREE.BackSide, blending: THREE.AdditiveBlending, toneMapped: false })
+    );
+    head.add(glow);
+
+    // Ohon - particle systém
+    this.tailCount = 160;
+    const tailGeo = new THREE.BufferGeometry();
+    this.tailPos = new Float32Array(this.tailCount * 3);
+    this.tailCol = new Float32Array(this.tailCount * 3);
+    // Deterministický rozptyl pro každou částici (negeneruje se každý frame)
+    this.tailScatter = new Float32Array(this.tailCount * 2);
+    for (let i = 0; i < this.tailCount; i++) {
+      // ang + amplituda perpendikulárního offsetu, deterministicky podle indexu
+      this.tailScatter[i * 2]     = Math.random() * Math.PI * 2;     // úhel kolem osy ohonu
+      this.tailScatter[i * 2 + 1] = Math.random() * 0.8;             // poloměr rozptylu (0..0.8)
+    }
+    tailGeo.setAttribute('position', new THREE.BufferAttribute(this.tailPos, 3));
+    tailGeo.setAttribute('color',    new THREE.BufferAttribute(this.tailCol, 3));
+    const tailMat = new THREE.PointsMaterial({
+      size: 1.2, vertexColors: true, transparent: true,
+      opacity: 0.85, blending: THREE.AdditiveBlending,
+      depthWrite: false, sizeAttenuation: true,
+    });
+    this.tail = new THREE.Points(tailGeo, tailMat);
+    this.tailGeo = tailGeo;
+    this.group.add(this.tail);
+
+    // Připrav orbitní čáru
+    const orbitSegs = 256;
+    const orbitGeo = new THREE.BufferGeometry();
+    const orbitPos = new Float32Array((orbitSegs + 1) * 3);
+    for (let i = 0; i <= orbitSegs; i++) {
+      const k = (i / orbitSegs) * Math.PI * 2;
+      orbitPos[i * 3]     = Math.cos(k) * a;
+      orbitPos[i * 3 + 1] = 0;
+      orbitPos[i * 3 + 2] = Math.sin(k) * b;
+    }
+    orbitGeo.setAttribute('position', new THREE.BufferAttribute(orbitPos, 3));
+    const orbit = new THREE.Line(orbitGeo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.15 }));
+    this.group.add(orbit);
+  }
+
+  update(dt) {
+    this.t += this.speed * dt;
+    const x = this.a * Math.cos(this.t);
+    const z = this.b * Math.sin(this.t);
+    this.head.position.set(x, 0, z);
+
+    // Směr od Slunce (ohon vždy proti Slunci) - ve světových souřadnicích
+    const worldHead = new THREE.Vector3();
+    this.head.getWorldPosition(worldHead);
+    const fromSun = worldHead.clone().normalize();
+    const distFromSun = worldHead.length();
+    const tailLen = THREE.MathUtils.clamp(40 / Math.max(1, distFromSun * 0.02), 12, 55);
+
+    // Převod world dir na local dir skupiny
+    const fromSunLocal = fromSun.clone().applyQuaternion(this.group.quaternion.clone().invert());
+
+    // Spočítej dva vektory kolmé k ohonu, abychom mohli rozptýlit částice kolem osy
+    const tailAxis = fromSunLocal.clone().normalize();
+    const upHelper = Math.abs(tailAxis.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+    const perp1 = new THREE.Vector3().crossVectors(tailAxis, upHelper).normalize();
+    const perp2 = new THREE.Vector3().crossVectors(tailAxis, perp1).normalize();
+
+    const r  = ((this.color >> 16) & 255) / 255;
+    const g  = ((this.color >> 8)  & 255) / 255;
+    const bl = ( this.color        & 255) / 255;
+
+    for (let i = 0; i < this.tailCount; i++) {
+      // Hustší u hlavy, řidší vzadu (sqrt distribuce)
+      const f = Math.sqrt(i / (this.tailCount - 1));
+      // Rozptyl roste směrem dozadu (kuželovitý šlejf)
+      const scatterAng = this.tailScatter[i * 2];
+      const scatterRad = this.tailScatter[i * 2 + 1] * f * 1.6;
+      const offX = (Math.cos(scatterAng) * perp1.x + Math.sin(scatterAng) * perp2.x) * scatterRad;
+      const offY = (Math.cos(scatterAng) * perp1.y + Math.sin(scatterAng) * perp2.y) * scatterRad;
+      const offZ = (Math.cos(scatterAng) * perp1.z + Math.sin(scatterAng) * perp2.z) * scatterRad;
+
+      this.tailPos[i * 3]     = x + tailAxis.x * tailLen * f + offX;
+      this.tailPos[i * 3 + 1] = 0 + tailAxis.y * tailLen * f + offY;
+      this.tailPos[i * 3 + 2] = z + tailAxis.z * tailLen * f + offZ;
+
+      const fade = 1 - f;             // lineární vyblednutí směrem dozadu
+      this.tailCol[i * 3]     = r * fade;
+      this.tailCol[i * 3 + 1] = g * fade;
+      this.tailCol[i * 3 + 2] = bl * fade;
+    }
+    this.tailGeo.attributes.position.needsUpdate = true;
+    this.tailGeo.attributes.color.needsUpdate = true;
+  }
+}
+
+const comets = [
+  new Comet({ id: 'comet1', name: 'Kometa Halley',   info: 'Vesmírná tulačka', a: 85, b: 38, tilt: 0.45, phase: 0,   speed: 0.18, color: 0x88ddff, headRadius: 0.7 }),
+  new Comet({ id: 'comet2', name: 'Kometa NEOWISE',  info: 'Ledová putovkyně', a: 105, b: 28, tilt: -0.6, phase: 2.1, speed: 0.13, color: 0xffddaa, headRadius: 0.6 }),
+];
+
+comets.forEach((c) => {
+  registerTarget({
+    id: c.id, name: c.name, info: c.info, radius: 2.5,
+    getWorldPos: () => { const v = new THREE.Vector3(); c.head.getWorldPosition(v); return v; },
+  });
+});
+
+// ========== ČERNÁ DÍRA ==========
+function createBlackHole() {
+  const group = new THREE.Group();
+  group.position.set(380, 70, -260);
+  scene.add(group);
+
+  const EH = 9;  // event horizon radius
+
+  // Event horizon - černá koule
+  const eh = new THREE.Mesh(
+    new THREE.SphereGeometry(EH, 64, 64),
+    new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false })
+  );
+  eh.userData.id = 'blackhole';
+  group.add(eh);
+  clickables.push(eh);
+
+  // Procedurální textura akrečního disku (gradient bílá → žlutá → oranžová → temně rudá)
+  function createAccretionTexture() {
+    const c = document.createElement('canvas');
+    c.width = 1024; c.height = 128;
+    const ctx = c.getContext('2d');
+    const img = ctx.createImageData(1024, 128);
+    for (let x = 0; x < 1024; x++) {
+      const f = x / 1024;
+      let r, g, b;
+      if (f < 0.12)      { r = 255; g = 255; b = 240; }
+      else if (f < 0.28) { r = 255; g = 230; b = 150; }
+      else if (f < 0.5)  { r = 255; g = 150; b = 60;  }
+      else if (f < 0.75) { r = 220; g = 70;  b = 30;  }
+      else               { r = 100; g = 20;  b = 15;  }
+      const noise = (Math.sin(x * 0.08) + Math.sin(x * 0.17) + Math.sin(x * 0.04)) * 25;
+      r = Math.max(0, Math.min(255, r + noise));
+      g = Math.max(0, Math.min(255, g + noise * 0.7));
+      b = Math.max(0, Math.min(255, b + noise * 0.4));
+      const alphaRadial = Math.sin(f * Math.PI);
+      for (let y = 0; y < 128; y++) {
+        const yf = (y - 64) / 64;
+        const yAlpha = Math.max(0, 1 - yf * yf * 1.3);
+        const a = Math.min(255, alphaRadial * yAlpha * 255);
+        const idx = (y * 1024 + x) * 4;
+        img.data[idx]     = r;
+        img.data[idx + 1] = g;
+        img.data[idx + 2] = b;
+        img.data[idx + 3] = a;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  // Akreční disk - plochý prstenec
+  const diskInner = EH * 1.4;
+  const diskOuter = EH * 4.5;
+  const diskGeo = new THREE.RingGeometry(diskInner, diskOuter, 192, 8);
+  // UV mapování: u = poloměr (0 = vnitřek, 1 = vnějšek), v = úhel
+  const dpos = diskGeo.attributes.position;
+  const duv  = diskGeo.attributes.uv;
+  const v3 = new THREE.Vector3();
+  for (let i = 0; i < dpos.count; i++) {
+    v3.fromBufferAttribute(dpos, i);
+    const r = v3.length();
+    const u = (r - diskInner) / (diskOuter - diskInner);
+    const a = Math.atan2(v3.y, v3.x) / (Math.PI * 2) + 0.5;
+    duv.setXY(i, u, a);
+  }
+  const diskTex = createAccretionTexture();
+  diskTex.wrapS = THREE.ClampToEdgeWrapping;
+  diskTex.wrapT = THREE.RepeatWrapping;
+  const diskMat = new THREE.MeshBasicMaterial({
+    map: diskTex, side: THREE.DoubleSide,
+    transparent: true, blending: THREE.AdditiveBlending,
+    depthWrite: false, toneMapped: false,
+  });
+  const disk = new THREE.Mesh(diskGeo, diskMat);
+  disk.rotation.x = -Math.PI / 2 + 0.25;  // mírně nakloněný (pro hezčí pohled)
+  group.add(disk);
+
+  // Fotonový prstenec - tenký jasný torus těsně nad horizontem událostí
+  const photonRing = new THREE.Mesh(
+    new THREE.TorusGeometry(EH * 1.08, 0.25, 12, 128),
+    new THREE.MeshBasicMaterial({ color: 0xfff2cc, transparent: true, opacity: 1.0, blending: THREE.AdditiveBlending, toneMapped: false })
+  );
+  photonRing.rotation.x = -Math.PI / 2 + 0.25;
+  group.add(photonRing);
+
+  // "Lensing" iluze - billboard se zářícím prstencem vždy čelem k kameře
+  // (efekt jakoby se světlo ohýbalo kolem černé díry)
+  function createLensingTexture() {
+    const c = document.createElement('canvas');
+    c.width = c.height = 512;
+    const ctx = c.getContext('2d');
+    const grad = ctx.createRadialGradient(256, 256, 95, 256, 256, 130);
+    grad.addColorStop(0,    'rgba(255,200,100,0)');
+    grad.addColorStop(0.4,  'rgba(255,220,140,0.9)');
+    grad.addColorStop(0.5,  'rgba(255,255,255,1)');
+    grad.addColorStop(0.6,  'rgba(255,170,80,0.7)');
+    grad.addColorStop(0.85, 'rgba(255,60,30,0.2)');
+    grad.addColorStop(1,    'rgba(255,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 512, 512);
+    return new THREE.CanvasTexture(c);
+  }
+  const lensTex = createLensingTexture();
+  lensTex.colorSpace = THREE.SRGBColorSpace;
+  const lensingHalo = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: lensTex, transparent: true, opacity: 0.85,
+    blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+  }));
+  lensingHalo.scale.set(EH * 3.0, EH * 3.0, 1);
+  group.add(lensingHalo);
+
+  return { group, disk, photonRing, lensingHalo, eh, EH };
+}
+
+const blackHole = createBlackHole();
+
+registerTarget({
+  id: 'blackhole',
+  name: 'Černá díra',
+  info: 'Pohlcuje i světlo!',
+  radius: blackHole.EH,
+  voice: 'Černá díra',
+  getWorldPos: () => blackHole.group.position.clone(),
+});
+
+// ========== GALAXIE (M101, M81, M83) ==========
+// Pomocná textura - měkká kulatá záře pro halo
+function createGlowTexture(hex) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const ctx = c.getContext('2d');
+  const col = new THREE.Color(hex);
+  const r255 = Math.round(col.r * 255);
+  const g255 = Math.round(col.g * 255);
+  const b255 = Math.round(col.b * 255);
+  const grad = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  grad.addColorStop(0,   `rgba(255,255,255,1)`);
+  grad.addColorStop(0.2, `rgba(${r255},${g255},${b255},0.9)`);
+  grad.addColorStop(0.5, `rgba(${r255},${g255},${b255},0.35)`);
+  grad.addColorStop(1,   `rgba(${r255},${g255},${b255},0)`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 256, 256);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function createGalaxy({ id, name, info, voice, position, tilt, scale, palette, coreColor, armCount, armTightness, dust }) {
+  const group = new THREE.Group();
+  group.position.copy(position);
+  group.rotation.set(tilt.x, tilt.y, tilt.z);
+  scene.add(group);
+
+  const starCount = 4500;
+  const geom = new THREE.BufferGeometry();
+  const pos = new Float32Array(starCount * 3);
+  const col = new Float32Array(starCount * 3);
+  const armOffset = (Math.PI * 2) / armCount;
+
+  for (let i = 0; i < starCount; i++) {
+    // Hustota klesá od jádra k okraji
+    const t = Math.pow(Math.random(), 0.55);
+    const r = t * scale;
+    // Spirálové rameno - logaritmická spirála
+    const armIndex = i % armCount;
+    const baseAngle = armIndex * armOffset;
+    const spiral = Math.log(1 + r * armTightness) * 3.2;
+    const armNoise = (Math.random() - 0.5) * (0.45 + (1 - t) * 0.6);
+    const angle = baseAngle + spiral + armNoise;
+    // Slabší tloušťka disku směrem ven
+    const vertical = (Math.random() - 0.5) * scale * (0.05 + (1 - t) * 0.04);
+
+    pos[i * 3]     = Math.cos(angle) * r + (Math.random() - 0.5) * 0.5;
+    pos[i * 3 + 1] = vertical;
+    pos[i * 3 + 2] = Math.sin(angle) * r + (Math.random() - 0.5) * 0.5;
+
+    // Barva: jádro teplejší, ramena podle palety, navíc lehké zesvětlení uprostřed
+    const c = new THREE.Color(palette[Math.floor(Math.random() * palette.length)]);
+    c.lerp(new THREE.Color(coreColor), Math.max(0, 1 - t * 1.8) * 0.6);
+    col[i * 3]     = c.r;
+    col[i * 3 + 1] = c.g;
+    col[i * 3 + 2] = c.b;
+  }
+  geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geom.setAttribute('color',    new THREE.BufferAttribute(col, 3));
+  const stars = new THREE.Points(geom, new THREE.PointsMaterial({
+    size: 0.9, vertexColors: true, transparent: true,
+    opacity: 0.95, blending: THREE.AdditiveBlending,
+    depthWrite: false, sizeAttenuation: true, toneMapped: false,
+  }));
+  group.add(stars);
+
+  // Prach v rovině galaxie (jemné tmavší body - vytváří hloubku)
+  if (dust) {
+    const dustCount = 1500;
+    const dustGeo = new THREE.BufferGeometry();
+    const dpos = new Float32Array(dustCount * 3);
+    const dcol = new Float32Array(dustCount * 3);
+    for (let i = 0; i < dustCount; i++) {
+      const t = 0.3 + Math.random() * 0.7;
+      const r = t * scale * 0.9;
+      const a = Math.random() * Math.PI * 2;
+      dpos[i * 3]     = Math.cos(a) * r;
+      dpos[i * 3 + 1] = (Math.random() - 0.5) * scale * 0.03;
+      dpos[i * 3 + 2] = Math.sin(a) * r;
+      const c = new THREE.Color(dust);
+      dcol[i * 3]     = c.r;
+      dcol[i * 3 + 1] = c.g;
+      dcol[i * 3 + 2] = c.b;
+    }
+    dustGeo.setAttribute('position', new THREE.BufferAttribute(dpos, 3));
+    dustGeo.setAttribute('color',    new THREE.BufferAttribute(dcol, 3));
+    const dustPoints = new THREE.Points(dustGeo, new THREE.PointsMaterial({
+      size: 1.4, vertexColors: true, transparent: true,
+      opacity: 0.35, depthWrite: false, sizeAttenuation: true,
+    }));
+    group.add(dustPoints);
+  }
+
+  // Jasné jádro - billboard halo (klikatelné)
+  const coreHaloTex = createGlowTexture(coreColor);
+  const coreHalo = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: coreHaloTex, transparent: true, opacity: 0.95,
+    blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+  }));
+  coreHalo.scale.set(scale * 0.55, scale * 0.55, 1);
+  coreHalo.userData.id = id;
+  group.add(coreHalo);
+  clickables.push(coreHalo);
+
+  // Vnější difuzní záře (přidává objem)
+  const wideHalo = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: createGlowTexture(palette[0]),
+    transparent: true, opacity: 0.35,
+    blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+  }));
+  wideHalo.scale.set(scale * 2.2, scale * 2.2, 1);
+  group.add(wideHalo);
+
+  return { id, name, info, voice, group, stars, scale, rotSpeed: 0.025 + Math.random() * 0.02 };
+}
+
+const galaxies = [
+  createGalaxy({
+    id: 'm101', name: 'Galaxie M101', info: 'Větrník - spirální obří galaxie',
+    voice: 'Galaxie M sto jedna, Větrník',
+    position: new THREE.Vector3(-650, 140, -420),
+    tilt: { x: 0.25, y: 0.5, z: 0.12 },
+    scale: 38, palette: ['#88bbff', '#aaccff', '#ffffff', '#ddeeff'],
+    coreColor: 0xffeecc, armCount: 5, armTightness: 0.15, dust: 0x222244,
+  }),
+  createGalaxy({
+    id: 'm81', name: 'Galaxie M81', info: 'Bódeova galaxie - klasická spirála',
+    voice: 'Galaxie M osmdesát jedna, Bódeova',
+    position: new THREE.Vector3(700, 220, 240),
+    tilt: { x: -0.75, y: 1.1, z: -0.15 },
+    scale: 32, palette: ['#ffcc88', '#ffddaa', '#aaccff', '#ffeebb'],
+    coreColor: 0xfff0c0, armCount: 2, armTightness: 0.28, dust: 0x331122,
+  }),
+  createGalaxy({
+    id: 'm83', name: 'Galaxie M83', info: 'Jižní větrník - růžová galaxie',
+    voice: 'Galaxie M osmdesát tři, jižní Větrník',
+    position: new THREE.Vector3(-480, -200, 560),
+    tilt: { x: 0.55, y: -0.6, z: 0.3 },
+    scale: 30, palette: ['#ff77aa', '#ffaaff', '#ffeeee', '#ff5588'],
+    coreColor: 0xffddbb, armCount: 3, armTightness: 0.22, dust: 0x442233,
+  }),
+];
+
+galaxies.forEach((g) => {
+  registerTarget({
+    id: g.id, name: g.name, info: g.info, voice: g.voice,
+    radius: g.scale * 0.45,
+    getWorldPos: () => g.group.position.clone(),
+  });
+});
+
+// ========== ČERVÍ DÍRA ==========
+function createWormhole() {
+  const group = new THREE.Group();
+  group.position.set(220, -260, 520);
+  group.rotation.set(0.4, -0.5, 0.2);
+  scene.add(group);
+
+  const R_OUT = 9;   // poloměr ústí
+  const R_TUBE = 1.8;
+
+  // Procedurální vír textura (pro tunel a halo)
+  function createVortexTexture() {
+    const c = document.createElement('canvas');
+    c.width = c.height = 512;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, 512, 512);
+    // Spirálová ramena
+    for (let arm = 0; arm < 5; arm++) {
+      const armAng = arm * (Math.PI * 2 / 5);
+      for (let i = 0; i < 260; i++) {
+        const t = i / 260;
+        const angle = armAng + t * Math.PI * 6;
+        const r = t * 245;
+        const x = 256 + Math.cos(angle) * r;
+        const y = 256 + Math.sin(angle) * r;
+        // Barva: vnitřek bílo-modrá, vnějšek fialovo-růžová
+        const hue = 200 + t * 100;
+        const lit = 70 - t * 25;
+        ctx.fillStyle = `hsla(${hue}, 95%, ${lit}%, ${0.85 * (1 - t * 0.6)})`;
+        ctx.beginPath();
+        ctx.arc(x, y, 2.5 + (1 - t) * 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    // Jasné jádro
+    const grad = ctx.createRadialGradient(256, 256, 0, 256, 256, 110);
+    grad.addColorStop(0,    'rgba(255,255,255,1)');
+    grad.addColorStop(0.3,  'rgba(180,230,255,0.9)');
+    grad.addColorStop(0.7,  'rgba(120,160,255,0.4)');
+    grad.addColorStop(1,    'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 512, 512);
+    // Hvězdičky pro hloubku
+    for (let i = 0; i < 90; i++) {
+      const x = Math.random() * 512;
+      const y = Math.random() * 512;
+      ctx.fillStyle = `rgba(255,255,255,${0.4 + Math.random() * 0.5})`;
+      ctx.beginPath();
+      ctx.arc(x, y, 0.6 + Math.random() * 1.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Kruhová maska
+    ctx.globalCompositeOperation = 'destination-in';
+    const mask = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+    mask.addColorStop(0,    'rgba(0,0,0,1)');
+    mask.addColorStop(0.85, 'rgba(0,0,0,1)');
+    mask.addColorStop(1,    'rgba(0,0,0,0)');
+    ctx.fillStyle = mask;
+    ctx.fillRect(0, 0, 512, 512);
+    ctx.globalCompositeOperation = 'source-over';
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  const vortexTex = createVortexTexture();
+
+  // Torus - ústí červí díry (klikatelný)
+  const torus = new THREE.Mesh(
+    new THREE.TorusGeometry(R_OUT, R_TUBE, 24, 96),
+    new THREE.MeshBasicMaterial({ color: 0x66aaff, transparent: true, opacity: 0.85, toneMapped: false })
+  );
+  torus.userData.id = 'wormhole';
+  group.add(torus);
+  clickables.push(torus);
+
+  // Vnitřek tunelu - disk s vír texturou (rotuje)
+  const tunnelDisk = new THREE.Mesh(
+    new THREE.CircleGeometry(R_OUT - R_TUBE * 0.3, 64),
+    new THREE.MeshBasicMaterial({
+      map: vortexTex, transparent: true,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+      side: THREE.DoubleSide, toneMapped: false,
+    })
+  );
+  group.add(tunnelDisk);
+
+  // Druhý disk z opačné strany rotuje obráceně (iluze tunelu)
+  const tunnelDiskBack = new THREE.Mesh(
+    new THREE.CircleGeometry(R_OUT - R_TUBE * 0.6, 64),
+    new THREE.MeshBasicMaterial({
+      map: vortexTex, transparent: true, opacity: 0.7,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+      side: THREE.DoubleSide, toneMapped: false,
+    })
+  );
+  tunnelDiskBack.position.z = 0.1;
+  group.add(tunnelDiskBack);
+
+  // Vnější svítící halo (billboard, vždy čelem k kameře)
+  const haloTex = createGlowTexture(0x66aaff);
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: haloTex, transparent: true, opacity: 0.7,
+    blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+  }));
+  halo.scale.set(R_OUT * 3.2, R_OUT * 3.2, 1);
+  group.add(halo);
+
+  // Částice obíhající kolem ústí (jakoby do něj padaly)
+  const partCount = 250;
+  const partGeo = new THREE.BufferGeometry();
+  const partPos = new Float32Array(partCount * 3);
+  const partCol = new Float32Array(partCount * 3);
+  const partData = []; // { ang, r, speed, vAngle }
+  for (let i = 0; i < partCount; i++) {
+    const r = R_OUT + 1 + Math.random() * R_OUT * 1.8;
+    const ang = Math.random() * Math.PI * 2;
+    const vAng = (Math.random() - 0.5) * 0.4;
+    partData.push({ ang, r, speed: 0.4 + Math.random() * 1.2, vAngle: vAng });
+    partPos[i * 3]     = Math.cos(ang) * r;
+    partPos[i * 3 + 1] = Math.sin(vAng) * r * 0.15;
+    partPos[i * 3 + 2] = Math.sin(ang) * r;
+    const c = new THREE.Color().setHSL(0.55 + Math.random() * 0.15, 0.9, 0.6 + Math.random() * 0.3);
+    partCol[i * 3]     = c.r;
+    partCol[i * 3 + 1] = c.g;
+    partCol[i * 3 + 2] = c.b;
+  }
+  partGeo.setAttribute('position', new THREE.BufferAttribute(partPos, 3));
+  partGeo.setAttribute('color',    new THREE.BufferAttribute(partCol, 3));
+  const particles = new THREE.Points(partGeo, new THREE.PointsMaterial({
+    size: 0.55, vertexColors: true, transparent: true, opacity: 0.9,
+    blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true,
+  }));
+  group.add(particles);
+
+  return { group, torus, tunnelDisk, tunnelDiskBack, halo, particles, partGeo, partPos, partData, R_OUT };
+}
+
+const wormhole = createWormhole();
+
+registerTarget({
+  id: 'wormhole',
+  name: 'Červí díra',
+  info: 'Tunel napříč vesmírem!',
+  voice: 'Červí díra',
+  radius: wormhole.R_OUT,
+  getWorldPos: () => wormhole.group.position.clone(),
+});
+
+// ========== UI: SPODNÍ LIŠTA ==========
+const planetBar = document.getElementById('planetBar');
+BODIES.forEach((d) => {
+  const btn = document.createElement('button');
+  btn.className = 'planet-btn';
+  btn.dataset.id = d.id;
+
+  const thumb = document.createElement('div');
+  thumb.className = 'planet-thumb';
+  // Náhled - barva planety jako gradient, později se přepíše texturou
+  const c = new THREE.Color(d.color);
+  thumb.style.background = `radial-gradient(circle at 30% 30%, #${new THREE.Color(d.color).multiplyScalar(1.5).getHexString()}, #${c.getHexString()} 70%, #000 100%)`;
+  if (d.emissive) {
+    thumb.style.boxShadow = '0 0 18px rgba(255, 200, 80, 0.9), inset -4px -4px 12px rgba(255,150,0,0.4)';
+  }
+
+  const name = document.createElement('div');
+  name.className = 'planet-name';
+  name.textContent = d.name;
+
+  btn.appendChild(thumb);
+  btn.appendChild(name);
+  btn.addEventListener('click', () => focusOn(d.id));
+  planetBar.appendChild(btn);
+});
+
+// Až se načte textura, použij ji i pro náhled v liště (CSS background-image)
+BODIES.forEach((d) => {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    const btn = planetBar.querySelector(`.planet-btn[data-id="${d.id}"] .planet-thumb`);
+    if (btn) {
+      btn.style.background = `url('${d.tex}') center/cover`;
+      btn.style.boxShadow = d.emissive
+        ? '0 0 18px rgba(255, 200, 80, 0.9), inset -4px -4px 12px rgba(0,0,0,0.3)'
+        : '0 0 8px rgba(255,255,255,0.2), inset -6px -6px 14px rgba(0,0,0,0.5)';
+    }
+  };
+  img.src = d.tex;
+});
+
+// Oddělovač mezi planetami a zvláštními objekty
+const sep = document.createElement('div');
+sep.style.cssText = 'width: 2px; background: rgba(108, 182, 255, 0.3); margin: 6px 4px; border-radius: 2px;';
+planetBar.appendChild(sep);
+
+// Tlačítka pro komety (ikona = malá komička)
+comets.forEach((c) => {
+  const btn = document.createElement('button');
+  btn.className = 'planet-btn';
+  btn.dataset.id = c.id;
+  const thumb = document.createElement('div');
+  thumb.className = 'planet-thumb';
+  const hex = '#' + c.color.toString(16).padStart(6, '0');
+  thumb.style.background = `radial-gradient(circle at 35% 35%, ${hex}, rgba(0,0,0,0.9) 70%)`;
+  thumb.style.boxShadow = `0 0 16px ${hex}, inset -6px -6px 14px rgba(0,0,0,0.5)`;
+  thumb.style.position = 'relative';
+  // Pseudo-ohon přes ::after by byl náročnější, použijeme jen lehký glow zleva
+  const tail = document.createElement('div');
+  tail.style.cssText = `position:absolute; left:-10px; top:50%; width:30px; height:6px; background:linear-gradient(to left, ${hex}, transparent); border-radius:50%; transform:translateY(-50%); filter:blur(2px);`;
+  thumb.appendChild(tail);
+  const name = document.createElement('div');
+  name.className = 'planet-name';
+  name.textContent = 'Kometa';
+  btn.appendChild(thumb);
+  btn.appendChild(name);
+  btn.addEventListener('click', () => focusOn(c.id));
+  planetBar.appendChild(btn);
+});
+
+// Tlačítko pro černou díru
+{
+  const btn = document.createElement('button');
+  btn.className = 'planet-btn';
+  btn.dataset.id = 'blackhole';
+  const thumb = document.createElement('div');
+  thumb.className = 'planet-thumb';
+  thumb.style.background = 'radial-gradient(circle at 50% 50%, #000 0%, #000 38%, #ffaa44 42%, #ff6622 50%, rgba(80,20,10,0.6) 70%, transparent 100%)';
+  thumb.style.boxShadow = '0 0 18px rgba(255,140,40,0.7), inset 0 0 6px rgba(0,0,0,0.8)';
+  const name = document.createElement('div');
+  name.className = 'planet-name';
+  name.textContent = 'Č. díra';
+  btn.appendChild(thumb);
+  btn.appendChild(name);
+  btn.addEventListener('click', () => focusOn('blackhole'));
+  planetBar.appendChild(btn);
+}
+
+// Tlačítka pro galaxie - thumb je spirálový gradient
+const galaxyThumbStyles = {
+  m101: {
+    bg: 'conic-gradient(from 0deg, rgba(170,200,255,0.95), rgba(255,238,200,1) 20%, rgba(150,180,255,0.4) 40%, rgba(220,235,255,0.9) 60%, rgba(140,170,255,0.3) 80%, rgba(170,200,255,0.95))',
+    shadow: '0 0 16px rgba(140, 180, 255, 0.8)',
+    label: 'M101',
+  },
+  m81: {
+    bg: 'conic-gradient(from 30deg, rgba(255,210,140,0.95), rgba(255,240,210,1) 20%, rgba(180,200,255,0.5) 45%, rgba(255,220,160,0.9) 65%, rgba(160,180,240,0.4) 85%, rgba(255,210,140,0.95))',
+    shadow: '0 0 16px rgba(255, 200, 120, 0.7)',
+    label: 'M81',
+  },
+  m83: {
+    bg: 'conic-gradient(from 60deg, rgba(255,140,200,0.95), rgba(255,220,220,1) 20%, rgba(220,120,180,0.45) 45%, rgba(255,170,210,0.9) 65%, rgba(200,100,160,0.4) 85%, rgba(255,140,200,0.95))',
+    shadow: '0 0 16px rgba(255, 140, 200, 0.75)',
+    label: 'M83',
+  },
+};
+galaxies.forEach((g) => {
+  const style = galaxyThumbStyles[g.id];
+  const btn = document.createElement('button');
+  btn.className = 'planet-btn';
+  btn.dataset.id = g.id;
+  const thumb = document.createElement('div');
+  thumb.className = 'planet-thumb';
+  thumb.style.background = style.bg;
+  thumb.style.boxShadow = style.shadow;
+  // Bílá tečka v centru = jádro
+  const core = document.createElement('div');
+  core.style.cssText = 'position:absolute; left:50%; top:50%; width:14px; height:14px; transform:translate(-50%,-50%); background:radial-gradient(circle, #fff 0%, #ffeecc 60%, transparent 100%); border-radius:50%; filter:blur(1px);';
+  thumb.style.position = 'relative';
+  thumb.appendChild(core);
+  const name = document.createElement('div');
+  name.className = 'planet-name';
+  name.textContent = style.label;
+  btn.appendChild(thumb);
+  btn.appendChild(name);
+  btn.addEventListener('click', () => focusOn(g.id));
+  planetBar.appendChild(btn);
+});
+
+// Tlačítko pro červí díru
+{
+  const btn = document.createElement('button');
+  btn.className = 'planet-btn';
+  btn.dataset.id = 'wormhole';
+  const thumb = document.createElement('div');
+  thumb.className = 'planet-thumb';
+  thumb.style.background = 'conic-gradient(from 0deg, #66aaff, #ffffff, #aa66ff, #66aaff, #ffffff, #aa66ff, #66aaff)';
+  thumb.style.boxShadow = '0 0 18px rgba(120, 180, 255, 0.85), inset 0 0 14px rgba(0,0,0,0.6)';
+  thumb.style.position = 'relative';
+  const inner = document.createElement('div');
+  inner.style.cssText = 'position:absolute; left:50%; top:50%; width:22px; height:22px; transform:translate(-50%,-50%); background:radial-gradient(circle, #fff 0%, #88ccff 50%, #000 100%); border-radius:50%;';
+  thumb.appendChild(inner);
+  const name = document.createElement('div');
+  name.className = 'planet-name';
+  name.textContent = 'Červí díra';
+  btn.appendChild(thumb);
+  btn.appendChild(name);
+  btn.addEventListener('click', () => focusOn('wormhole'));
+  planetBar.appendChild(btn);
+}
+
+// ========== KAMERA: PLYNULÝ LET ==========
+let flyState = null; // { fromPos, toPos, fromTarget, toTarget, t, dur }
+
+function easeInOutCubic(x) {
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+}
+
+function focusOn(id) {
+  const tgt = targets[id];
+  if (!tgt) return;
+  ui.selectCategory(ui.categoryFor(id));
+  document.getElementById('objectCopy').textContent = tgt.info || '';
+  renderFacts(id);
+  controls.minDistance = Math.max(tgt.radius * 1.15, .8);
+  controls.enablePan = false;
+
+  // Aktualizuj UI - aktivní tlačítko, titulek
+  document.querySelectorAll('.planet-btn').forEach((el) => {
+    el.classList.toggle('active', el.dataset.id === id);
+    el.setAttribute('aria-pressed', el.dataset.id === id);
+  });
+  const titleEl = document.getElementById('title');
+  const subEl = document.getElementById('subtitle');
+  titleEl.textContent = tgt.name;
+  subEl.textContent = tgt.info || '';
+  titleEl.classList.add('visible');
+  subEl.classList.add('visible');
+
+  // Vyslov název nahlas
+  speak(tgt.voice || tgt.name);
+
+  // Spočítat cíl - světová pozice + posun pro výhled
+  const worldPos = tgt.getWorldPos();
+  const halfFov = Math.min(THREE.MathUtils.degToRad(camera.fov / 2), Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect));
+  const dist = Math.max(tgt.radius / Math.sin(halfFov) * 1.25, 5);
+  const dirFromSun = worldPos.clone().negate().normalize();
+  if (dirFromSun.lengthSq() < 0.001) dirFromSun.set(0, 0, 1);
+  const camTarget = worldPos.clone().add(dirFromSun.multiplyScalar(dist)).add(new THREE.Vector3(0, tgt.radius * 1.2, 0));
+
+  flyState = {
+    fromPos: camera.position.clone(),
+    toPos: camTarget,
+    fromTarget: controls.target.clone(),
+    toTarget: worldPos.clone(),
+    t: 0,
+    dur: reducedMotion.matches ? .001 : 1.4,
+    followId: id,
+  };
+}
+
+function goHome() {
+  renderFacts(null);
+  window.speechSynthesis?.cancel();
+  controls.minDistance = 3;
+  controls.enablePan = true;
+  ui.updateHomePosition();
+  document.getElementById('objectCopy').textContent = 'Slunce a osm planet na oběžných drahách. Vyberte objekt ve scéně nebo v katalogu.';
+  document.querySelectorAll('.planet-btn').forEach((el) => { el.classList.remove('active'); el.setAttribute('aria-pressed', 'false'); });
+  document.getElementById('title').textContent = 'Sluneční soustava';
+  document.getElementById('subtitle').textContent = 'Jedna hvězda. Osm planet.';
+  flyState = {
+    fromPos: camera.position.clone(),
+    toPos: HOME_POS.clone(),
+    fromTarget: controls.target.clone(),
+    toTarget: new THREE.Vector3(0, 0, 0),
+    t: 0,
+    dur: reducedMotion.matches ? .001 : 1.4,
+    followId: null,
+  };
+}
+document.getElementById('homeBtn').addEventListener('click', goHome);
+
+// ========== KLIKÁNÍ V SCÉNĚ (raycaster) ==========
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let mouseDown = null;
+const pointers = new Set();
+controls.addEventListener('start', () => { flyState = null; });
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  pointers.add(e.pointerId);
+  mouseDown = pointers.size === 1 ? { x: e.clientX, y: e.clientY } : null;
+});
+renderer.domElement.addEventListener('pointerup', (e) => {
+  pointers.delete(e.pointerId);
+  if (!mouseDown || pointers.size) { mouseDown = null; return; }
+  const dx = e.clientX - mouseDown.x;
+  const dy = e.clientY - mouseDown.y;
+  mouseDown = null;
+  if (Math.hypot(dx, dy) > 6) return; // bylo to tažení, ne klik
+
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(clickables, false);
+  if (hits.length > 0) {
+    const id = hits[0].object.userData.id;
+    if (id) focusOn(id);
+  }
+});
+
+// Hover - kurzor jako ukazovák nad klikatelnou planetou
+renderer.domElement.addEventListener('pointermove', (e) => {
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(clickables, false);
+  renderer.domElement.style.cursor = hits.length > 0 ? 'pointer' : 'grab';
+});
+
+// ========== HLAVNÍ SMYČKA ==========
+renderer.domElement.addEventListener('pointercancel', event => { pointers.delete(event.pointerId); mouseDown = null; });
+const clock = new THREE.Clock();
+
+function animate() {
+  const realDt = Math.min(clock.getDelta(), .05);
+  const dt = simulation.advance(realDt);
+  const t = simulation.elapsed;
+
+  // Oběhy a rotace
+  BODIES.forEach((d) => {
+    const b = bodyMap[d.id];
+    if (d.orbSpeed > 0) {
+      b.group.rotation.y += d.orbSpeed * dt * 60;
+    }
+    b.mesh.rotation.y += d.rotSpeed * dt * 60;
+    if (b.mesh.userData.clouds) {
+      b.mesh.userData.clouds.rotation.y += 0.0006 * dt * 60;
+    }
+    if (b.mesh.userData.moonPivot) {
+      b.mesh.userData.moonPivot.rotation.y += 0.012 * dt * 60;
+    }
+  });
+
+  // Komety
+  comets.forEach((c) => c.update(dt));
+
+  // Černá díra - rotace akrečního disku + pulzování halo
+  blackHole.disk.rotation.z += dt * 0.6;
+  blackHole.photonRing.rotation.z -= dt * 0.3;
+  blackHole.lensingHalo.material.opacity = 0.7 + Math.sin(t * 1.8) * 0.15;
+
+  // Galaxie - pomalá rotace celých struktur
+  galaxies.forEach((g) => {
+    g.stars.rotation.y += g.rotSpeed * dt;
+    // Lehké pulzování svítivosti
+    g.stars.material.opacity = 0.85 + Math.sin(t * 0.6 + g.scale) * 0.08;
+  });
+
+  // Červí díra - rotující tunel + obíhající částice
+  wormhole.tunnelDisk.rotation.z += dt * 1.4;
+  wormhole.tunnelDiskBack.rotation.z -= dt * 0.9;
+  wormhole.torus.rotation.z += dt * 0.4;
+  wormhole.halo.material.opacity = 0.6 + Math.sin(t * 2.2) * 0.15;
+  // Částice se spirálovitě stahují k ústí
+  for (let i = 0; i < wormhole.partData.length; i++) {
+    const p = wormhole.partData[i];
+    p.ang += dt * p.speed * 0.6;
+    p.r -= dt * p.speed * 1.2;
+    if (p.r < wormhole.R_OUT * 0.4) {
+      // Reset zpět ven
+      p.r = wormhole.R_OUT + 1 + Math.random() * wormhole.R_OUT * 1.8;
+      p.ang = Math.random() * Math.PI * 2;
+      p.vAngle = (Math.random() - 0.5) * 0.4;
+    }
+    wormhole.partPos[i * 3]     = Math.cos(p.ang) * p.r;
+    wormhole.partPos[i * 3 + 1] = Math.sin(p.vAngle) * p.r * 0.15;
+    wormhole.partPos[i * 3 + 2] = Math.sin(p.ang) * p.r;
+  }
+  wormhole.partGeo.attributes.position.needsUpdate = true;
+
+  // Plynulý let kamery (jen dokud nedoletí)
+  if (flyState && !flyState.finished) {
+    if (flyState.followId) {
+      const current = targets[flyState.followId].getWorldPos();
+      flyState.toPos.add(current.clone().sub(flyState.toTarget));
+      flyState.toTarget.copy(current);
+    }
+    flyState.t += realDt / flyState.dur;
+    const k = easeInOutCubic(Math.min(1, flyState.t));
+    camera.position.lerpVectors(flyState.fromPos, flyState.toPos, k);
+    controls.target.lerpVectors(flyState.fromTarget, flyState.toTarget, k);
+    if (flyState.t >= 1) {
+      flyState.finished = true;
+      if (!flyState.followId) flyState = null;
+    }
+  }
+
+  // Sledování cíle (po doletu) - kamera se "veze" s ním
+  if (flyState && flyState.finished && flyState.followId) {
+    const tgt = targets[flyState.followId];
+    if (tgt) {
+      const worldPos = tgt.getWorldPos();
+      const delta = worldPos.clone().sub(controls.target);
+      controls.target.add(delta);
+      camera.position.add(delta);
+    }
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+
+// Skryj loading až po prvním renderu
+requestAnimationFrame(() => {
+  animate();
+  setTimeout(finishLoading, 8000);
+});
+
+// ========== PROPOJENÍ ROZHRANÍ ==========
+ui = bindUi({ targets, bodies: BODIES, renderer, camera, controls, homePosition: HOME_POS, simulation, reducedMotion, focusOn, goHome, speak, cancelFlight: () => { flyState = null; }, resetClock: () => clock.getDelta(), THREE });
+document.getElementById('soundBtn').addEventListener('click', event => {
+  soundEnabled = !soundEnabled;
+  event.currentTarget.textContent = soundEnabled ? 'Hlas: zap.' : 'Hlas: vyp.';
+  event.currentTarget.setAttribute('aria-pressed', soundEnabled);
+  if (!soundEnabled) window.speechSynthesis?.cancel();
+});
+let loadingFinished = false;
+function finishLoading() {
+  if (loadingFinished) return;
+  loadingFinished = true;
+  document.getElementById('loading').classList.add('hidden');
+  document.getElementById('sceneStatus').textContent = textureFailures ? 'Některé textury nejsou dostupné. Používám barevné povrchy.' : '';
+  window.dispatchEvent(new Event('space-ready'));
+}
+renderer.domElement.addEventListener('webglcontextlost', event => {
+  event.preventDefault();
+  document.getElementById('sceneStatus').textContent = 'Grafika byla přerušena. Obnovuji scénu…';
+});
+renderer.domElement.addEventListener('webglcontextrestored', () => { document.getElementById('sceneStatus').textContent = ''; });
+goHome();
